@@ -626,3 +626,10 @@ TRANSLATIONS["kz"].update({
 TRANSLATIONS["ru"].update({"all_lbl": "Все", "process_col": "Процесс"})
 TRANSLATIONS["en"].update({"all_lbl": "All", "process_col": "Process"})
 TRANSLATIONS["kz"].update({"all_lbl": "Барлығы", "process_col": "Процесс"})
+
+TRANSLATIONS["ru"].update({"pause_btn": "⏸  Пауза", "resume_btn": "▶  Продолжить",
+                           "paused": "● Пауза", "details_col": "Детали"})
+TRANSLATIONS["en"].update({"pause_btn": "⏸  Pause", "resume_btn": "▶  Resume",
+                           "paused": "● Paused", "details_col": "Details"})
+TRANSLATIONS["kz"].update({"pause_btn": "⏸  Кідірту", "resume_btn": "▶  Жалғастыру",
+                           "paused": "● Кідірту", "details_col": "Мәліметтер"})

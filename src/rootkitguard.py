@@ -108,7 +108,7 @@ class RootkitGuard(ctk.CTk):
         self.resizable(True, True)
 
         self.model_loaded = False
-        self._load_models()
+        threading.Thread(target=self._load_models_bg, daemon=True).start()
 
         self._last_scan = {
             "total": 0, "anomaly": 0, "normal": 0,
@@ -122,6 +122,16 @@ class RootkitGuard(ctk.CTk):
         self._build_ui()
         threading.Thread(target=self._check_api, daemon=True).start()
         threading.Thread(target=self._auto_startup_scan, daemon=True).start()
+
+    def _load_models_bg(self):
+        """Грузим модели в фоне, чтобы окно открывалось мгновенно."""
+        self._load_models()
+        try:
+            mc = "#2dc97e" if self.model_loaded else "#e74c3c"
+            mt = t("model_loaded") if self.model_loaded else t("model_not_found")
+            self.after(0, lambda: self.model_lbl.configure(text=mt, text_color=mc))
+        except Exception:
+            pass
 
     def _load_models(self):
         try:
@@ -222,9 +232,8 @@ class RootkitGuard(ctk.CTk):
                        "ЧИСТАЯ": "#2dc97e"}.get(threat, "#2dc97e")
             self._last_autoscan = (threat, count)
             notify_threat(threat, f"Авто-сканирование при запуске: {count} находок")
-            if threat == "ВЫСОКАЯ":
-                self.after(500, lambda: threading.Thread(
-                    target=self._run_rootkit_local, daemon=True).start())
+            # (раньше тут вызывался _run_rootkit_local — методы страницы,
+            #  которой нет в навигации; это роняло фоновый поток)
         except Exception as e:
            log.error(f"Авто-скан ошибка: {e}")
     # ── UI ──────────────────────────────────────────────────────
@@ -367,16 +376,18 @@ class RootkitGuard(ctk.CTk):
                                             scrollbar_button_hover_color="#2d3748")
         self.main.pack(side="left", fill="both", expand=True, padx=10, pady=10)
 
-        self.pages = {
-            "home":      self._page_home(),
-            "rkdefense": self._page_rkdefense(),
-            "scan":      self._page_scan(),
-            "monitor":   self._page_monitor(),
-            "analytics": self._page_analytics(),
-            "report":    self._page_report(),
-            "settings":  self._page_settings(),
-            "about":     self._page_about(),
+        self._page_builders = {
+            "home":      self._page_home,
+            "rkdefense": self._page_rkdefense,
+            "scan":      self._page_scan,
+            "monitor":   self._page_monitor,
+            "analytics": self._page_analytics,
+            "report":    self._page_report,
+            "settings":  self._page_settings,
+            "about":     self._page_about,
         }
+        self.pages = {}          # страницы строятся лениво при первом открытии
+        self._current_page = "home"
         self.show_page("home")
 
     def _toggle_nav(self):
@@ -429,11 +440,16 @@ class RootkitGuard(ctk.CTk):
             self.nav_version.pack(pady=(0, 16), before=self.nav_buttons["home"])
 
     def show_page(self, key):
+        if key not in self.pages:
+            self.pages[key] = self._page_builders[key]()   # ленивое построение
         for p in self.pages.values():
             p.pack_forget()
         self.pages[key].pack(fill="both", expand=True)
+        self._current_page = key
         for k, btn in self.nav_buttons.items():
             btn.configure(fg_color="#1f538d" if k == key else "transparent")
+        if key == "monitor":
+            self.after(50, self._refresh_monitor_table)
 
 
     def _show_lang_menu(self):
@@ -454,19 +470,19 @@ class RootkitGuard(ctk.CTk):
 
     def _switch_lang(self, lang: str):
         set_lang(lang)
-        # Пересоздаём все страницы
+        # Останавливаем фоновый мониторинг перед сносом страницы
+        if hasattr(self, "_monitor"):
+            try:
+                self._monitor.stop_realtime()
+            except Exception:
+                pass
+        # Пересоздаём только построенные страницы — лениво
         for p in self.pages.values():
             p.destroy()
-        self.pages = {
-            "home":      self._page_home(),
-            "rkdefense": self._page_rkdefense(),
-            "scan":      self._page_scan(),
-            "monitor":   self._page_monitor(),
-            "analytics": self._page_analytics(),
-            "report":    self._page_report(),
-            "settings":  self._page_settings(),
-            "about":     self._page_about(),
-        }
+        self.pages = {}
+        cur = getattr(self, "_current_page", "home")
+        self.pages[cur] = self._page_builders[cur]()
+        self.pages[cur].pack(fill="both", expand=True)
         # Обновляем навигацию
         pages_nav = [
             (t("home"),         "home"),
@@ -2540,107 +2556,136 @@ Security Score: {insight['metrics'][0][1]}
 
     def _page_monitor(self):
         frame = ctk.CTkFrame(self.main, fg_color="transparent")
-        ctk.CTkLabel(frame, text=t("process_monitoring"),
-                     font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(10, 5))
 
-        ctrl = ctk.CTkFrame(frame)
-        ctrl.pack(fill="x", padx=20, pady=5)
-        self.mon_status = ctk.CTkLabel(ctrl, text=t("stopped"),
-                                        text_color="#e74c3c",
-                                        font=ctk.CTkFont(size=13))
-        self.mon_status.pack(side="left", padx=15, pady=10)
-        self.mon_count = ctk.CTkLabel(ctrl, text=f"{t('processes')}: —",
-                                       text_color="gray", font=ctk.CTkFont(size=13))
+        # ── Заголовок + статус (минималистичная панель) ──────────
+        bar = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=10,
+                           border_width=1, border_color="#1e293b", height=56)
+        bar.pack(fill="x", padx=16, pady=(10, 6))
+        bar.pack_propagate(False)
+        ctk.CTkLabel(bar, text=t("process_monitoring"),
+                     font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color="#e2e8f0").pack(side="left", padx=16)
+        self.mon_status = ctk.CTkLabel(bar, text="● LIVE",
+                                       text_color="#2dc97e",
+                                       font=ctk.CTkFont(size=12, weight="bold"))
+        self.mon_status.pack(side="left", padx=8)
+        self.mon_count = ctk.CTkLabel(bar, text=f"{t('processes')}: —",
+                                      text_color="#64748b", font=ctk.CTkFont(size=12))
         self.mon_count.pack(side="left", padx=10)
-        self.mon_threats = ctk.CTkLabel(ctrl, text=f"{t('threats_lbl')}: —",
-                                         text_color="gray", font=ctk.CTkFont(size=13))
+        self.mon_threats = ctk.CTkLabel(bar, text=f"{t('threats_lbl')}: —",
+                                        text_color="#64748b", font=ctk.CTkFont(size=12))
         self.mon_threats.pack(side="left", padx=10)
-        ctk.CTkLabel(ctrl, text=t("filter")).pack(side="left", padx=(20, 5))
+
+        self.btn_pause_mon = ctk.CTkButton(
+            bar, text=t("pause_btn"), width=120, height=30, corner_radius=8,
+            fg_color="#1e293b", hover_color="#2d3748",
+            command=self._toggle_monitor)
+        self.btn_pause_mon.pack(side="right", padx=12)
         self.mon_filter = ctk.CTkComboBox(
-            ctrl, values=[t("all_lbl"), "ВЫСОКАЯ", "СРЕДНЯЯ", "НИЗКАЯ"], width=120)
+            bar, values=[t("all_lbl"), "ВЫСОКАЯ", "СРЕДНЯЯ", "НИЗКАЯ"], width=120,
+            command=lambda v: self._refresh_monitor_table())
         self.mon_filter.set(t("all_lbl"))
-        self.mon_filter.pack(side="left", padx=5)
-        self.mon_filter.configure(command=lambda v: self._refresh_monitor_table())
-        self.btn_start_mon = ctk.CTkButton(ctrl, text=t("run_btn"), width=120,
-                                            fg_color="#2d6a4f",
-                                            command=self._start_monitor)
-        self.btn_start_mon.pack(side="right", padx=5, pady=8)
-        self.btn_stop_mon = ctk.CTkButton(ctrl, text=t("stop_sq"), width=110,
-                                           fg_color="#7a1e1e", state="disabled",
-                                           command=self._stop_monitor)
-        self.btn_stop_mon.pack(side="right", padx=5)
-        ctk.CTkButton(ctrl, text="↺", width=40, fg_color="transparent",
-                      border_width=1,
-                      command=self._refresh_monitor_table).pack(side="right", padx=5)
+        self.mon_filter.pack(side="right", padx=4)
+        ctk.CTkLabel(bar, text=t("filter"), text_color="#64748b").pack(side="right", padx=(8, 2))
 
-        tf = ctk.CTkFrame(frame)
-        tf.pack(fill="both", expand=True, padx=20, pady=5)
-        hdr = ctk.CTkFrame(tf, fg_color="#1a1a2e", corner_radius=0)
-        hdr.pack(fill="x")
-        for col, w in [("PID",60),(t("process_col"),185),("CPU%",60),
-                        ("RAM MB",70),("Conn",50),("Score",75),(t("threat"),95)]:
-            ctk.CTkLabel(hdr, text=col, width=w,
-                         font=ctk.CTkFont(size=12, weight="bold"),
-                         text_color="#85B7EB").pack(side="left", padx=4, pady=8)
-        self.mon_scroll = ctk.CTkScrollableFrame(tf, height=400)
-        self.mon_scroll.pack(fill="both", expand=True)
+        # ── Таблица ──────────────────────────────────────────────
+        tf = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=10,
+                          border_width=1, border_color="#1e293b")
+        tf.pack(fill="both", expand=True, padx=16, pady=(0, 10))
+        hdr = ctk.CTkFrame(tf, fg_color="transparent")
+        hdr.pack(fill="x", padx=4, pady=(6, 0))
+        self._mon_cols = [("PID", 60), (t("process_col"), 200), ("CPU%", 60),
+                          ("RAM MB", 75), ("Conn", 55), ("Score", 70),
+                          (t("threat"), 90), (t("details_col"), 260)]
+        for col, w in self._mon_cols:
+            ctk.CTkLabel(hdr, text=col, width=w, anchor="w",
+                         font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color="#475569").pack(side="left", padx=4, pady=6)
+        self.mon_scroll = ctk.CTkScrollableFrame(tf, fg_color="transparent")
+        self.mon_scroll.pack(fill="both", expand=True, padx=4, pady=(0, 4))
 
+        # Real-time стартует автоматически
+        self._mon_rows = []
         self._monitor = ProcessMonitor()
         self._monitor_data = []
         self._monitor.add_callback(self._on_monitor_update)
-        threading.Thread(target=self._initial_scan, daemon=True).start()
+        self._monitor.start_realtime()
         return frame
-
-    def _initial_scan(self):
-        self._monitor_data = self._monitor.scan_all_processes()
-        self.after(0, self._refresh_monitor_table)
 
     def _on_monitor_update(self, data):
         self._monitor_data = data
         self.after(0, self._refresh_monitor_table)
 
     def _refresh_monitor_table(self, *args):
-        for w in self.mon_scroll.winfo_children():
-            w.destroy()
+        if not hasattr(self, "mon_scroll") or not self.mon_scroll.winfo_exists():
+            return
+        # Не тратим ресурсы, если страница мониторинга не на экране
+        if getattr(self, "_current_page", "") != "monitor":
+            return
         filt = self.mon_filter.get()
         data = (self._monitor_data if filt == t("all_lbl")
                 else [r for r in self._monitor_data if r["threat"] == filt])
+        data = data[:40]
         threats = sum(1 for r in self._monitor_data if r["threat"] != "НИЗКАЯ")
         self.mon_count.configure(text=f"{t('processes')}: {len(self._monitor_data)}")
         self.mon_threats.configure(
             text=f"{t('threats_lbl')}: {threats}",
             text_color="#e74c3c" if threats > 0 else "#2dc97e")
-        c_map = {"ВЫСОКАЯ": "#e74c3c", "СРЕДНЯЯ": "#f39c12", "НИЗКАЯ": "#2dc97e"}
-        for i, r in enumerate(data[:50]):
-            bg  = "#1e1e2e" if i % 2 == 0 else "#16162a"
-            row = ctk.CTkFrame(self.mon_scroll, fg_color=bg, corner_radius=0)
-            row.pack(fill="x")
-            tc  = c_map.get(r["threat"], "gray")
-            for val, w, threat_col in [
-                (str(r["pid"]),             60, False),
-                (r["name"][:22],           185, False),
-                (f"{r['cpu_percent']:.1f}", 60, False),
-                (f"{r['mem_rss']:.1f}",     70, False),
-                (str(r["n_conn"]),          50, False),
-                (f"{r['score']:.3f}",       75, False),
-                (r["threat"],               95, True),
-            ]:
-                ctk.CTkLabel(row, text=val, width=w,
-                             font=ctk.CTkFont(size=12),
-                             text_color=tc if threat_col else "white"
-                             ).pack(side="left", padx=4, pady=6)
+        c_map = {"ВЫСОКАЯ": "#e74c3c", "СРЕДНЯЯ": "#f39c12", "НИЗКАЯ": "#475569"}
+        widths = [w for _, w in self._mon_cols]
 
-    def _start_monitor(self):
-        self._monitor.start_realtime()
-        self.mon_status.configure(text=t("active"), text_color="#2dc97e")
-        self.btn_start_mon.configure(state="disabled")
-        self.btn_stop_mon.configure(state="normal")
+        # Обновляем виджеты «на месте» — пересоздание сотен виджетов
+        # каждые 3 сек было главной причиной подвисаний
+        rows = getattr(self, "_mon_rows", [])
+        # добираем недостающие строки
+        while len(rows) < len(data):
+            i = len(rows)
+            bg = "#111827" if i % 2 == 0 else "#0d1117"
+            row_frame = ctk.CTkFrame(self.mon_scroll, fg_color=bg, corner_radius=0)
+            row_frame.pack(fill="x")
+            labels = []
+            for w in widths:
+                lbl = ctk.CTkLabel(row_frame, text="", width=w, anchor="w",
+                                   font=ctk.CTkFont(size=11),
+                                   text_color="#94a3b8")
+                lbl.pack(side="left", padx=4, pady=5)
+                labels.append(lbl)
+            rows.append((row_frame, labels))
+        # прячем лишние
+        for row_frame, _ in rows[len(data):]:
+            row_frame.pack_forget()
+        # заполняем данные
+        for i, r in enumerate(data):
+            row_frame, labels = rows[i]
+            if not row_frame.winfo_ismapped():
+                row_frame.pack(fill="x")
+            tc = c_map.get(r["threat"], "#475569")
+            reason = ", ".join(r.get("reasons", []))[:42] or "—"
+            cells = [
+                (str(r["pid"]),              "#94a3b8"),
+                (r["name"][:26],             "#e2e8f0"),
+                (f"{r['cpu_percent']:.1f}",  "#94a3b8"),
+                (f"{r['mem_rss']:.1f}",      "#94a3b8"),
+                (str(r["n_conn"]),           "#94a3b8"),
+                (f"{r['score']:.2f}",        "#94a3b8"),
+                (r["threat"],                tc),
+                (reason,                     tc if reason != "—" else "#475569"),
+            ]
+            for lbl, (val, color) in zip(labels, cells):
+                if lbl.cget("text") != val:
+                    lbl.configure(text=val)
+                lbl.configure(text_color=color)
+        self._mon_rows = rows
 
-    def _stop_monitor(self):
-        self._monitor.stop_realtime()
-        self.mon_status.configure(text=t("stopped"), text_color="#e74c3c")
-        self.btn_start_mon.configure(state="normal")
-        self.btn_stop_mon.configure(state="disabled")
+    def _toggle_monitor(self):
+        if self._monitor.running:
+            self._monitor.stop_realtime()
+            self.mon_status.configure(text=t("paused"), text_color="#f39c12")
+            self.btn_pause_mon.configure(text=t("resume_btn"))
+        else:
+            self._monitor.start_realtime()
+            self.mon_status.configure(text="● LIVE", text_color="#2dc97e")
+            self.btn_pause_mon.configure(text=t("pause_btn"))
 
     # ── Аналитика (без matplotlib) ───────────────────────────────
 
@@ -2945,6 +2990,8 @@ Security Score: {insight['metrics'][0][1]}
             ])
 
     def _update_report_info(self):
+        if not hasattr(self, "report_info_lbl") or not self.report_info_lbl.winfo_exists():
+            return
         s = self._last_scan
         if s["total"] == 0:
             self.report_info_lbl.configure(
@@ -2961,6 +3008,10 @@ Security Score: {insight['metrics'][0][1]}
               if s["timestamp"] else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
         fn = Path(s["filename"]).stem if s["filename"] else "noscan"
         return f"report_{fn}_{ts}.{ext}"
+
+    def _report_ui_ready(self) -> bool:
+        """Виджеты страницы «Отчёт» существуют (страницы строятся лениво)."""
+        return hasattr(self, "report_box") and self.report_box.winfo_exists()
 
     def _gen_text_report(self):
         self._update_report_info()
@@ -3013,7 +3064,8 @@ Security Score: {insight['metrics'][0][1]}
         self._update_report_info()
         try:
             from pdf_report import generate_pdf_report
-            self.report_status.configure(text=t("generating_pdf"), text_color="yellow")
+            if self._report_ui_ready():
+                self.report_status.configure(text=t("generating_pdf"), text_color="yellow")
             s = self._last_scan
             out_name = self._unique_name("pdf")
             out_path = str(Path("reports") / out_name)
@@ -3030,8 +3082,11 @@ Security Score: {insight['metrics'][0][1]}
                 "timestamp":  s["timestamp"] or "—",
             }
             generate_pdf_report(scan_data, out_path)
-            self.report_status.configure(
-                text=f"✓ PDF: reports/{out_name}", text_color="#2dc97e")
+            if self._report_ui_ready():
+                self.report_status.configure(
+                    text=f"✓ PDF: reports/{out_name}", text_color="#2dc97e")
+            if not self._report_ui_ready():
+                return
             self.report_box.configure(state="normal")
             self.report_box.delete("1.0", "end")
             self.report_box.insert("end",
@@ -3044,7 +3099,8 @@ Security Score: {insight['metrics'][0][1]}
                 f"Открой файл из папки reports/")
             self.report_box.configure(state="disabled")
         except Exception as e:
-            self.report_status.configure(text=f"{t('pdf_error')}: {e}", text_color="red")
+            if self._report_ui_ready():
+                self.report_status.configure(text=f"{t('pdf_error')}: {e}", text_color="red")
             log.error(f"PDF error: {e}")
 
     # ── Настройки ────────────────────────────────────────────────

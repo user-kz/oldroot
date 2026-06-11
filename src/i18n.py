@@ -698,3 +698,7 @@ TRANSLATIONS["en"].update({"defense_title":"🛡 Auto Defense — response",
   "def_isolate":"⛔ Isolate","def_quarantine":"📦 Quarantine","def_forensics":"🔬 Forensics"})
 TRANSLATIONS["kz"].update({"defense_title":"🛡 Auto Defense — әрекет",
   "def_isolate":"⛔ Оқшаулау","def_quarantine":"📦 Карантин","def_forensics":"🔬 Форензика"})
+
+TRANSLATIONS["ru"].update({"realtime_btn":"⚡ РЕАЛ-ТАЙМ","realtime_on":"⏹ СТОП (LIVE)"})
+TRANSLATIONS["en"].update({"realtime_btn":"⚡ REAL-TIME","realtime_on":"⏹ STOP (LIVE)"})
+TRANSLATIONS["kz"].update({"realtime_btn":"⚡ РЕАЛ-ТАЙМ","realtime_on":"⏹ ТОҚТАТУ (LIVE)"})

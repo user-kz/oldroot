@@ -527,6 +527,8 @@ class RootkitGuard(ctk.CTk):
                         self.mon_status.configure(text="● LIVE", text_color="#2dc97e")
             else:
                 self._monitor.stop_realtime()
+        if key != "rkdefense" and getattr(self, "_rkd_rt_running", False):
+            self._rkd_rt_running = False
         if key == "monitor":
             self.after(50, self._refresh_monitor_table)
         if key == "analytics":
@@ -3718,6 +3720,15 @@ Security Score: {insight['metrics'][0][1]}
                           target=self._run_rkdefense_scan, daemon=True).start()
                       ).pack(side="left", padx=(14, 6), pady=9)
 
+        # РЕАЛ-ТАЙМ — непрерывный мониторинг угроз
+        self.rkd_rt_btn = ctk.CTkButton(
+            actions, text=t("realtime_btn"), width=140, height=34, corner_radius=8,
+            fg_color=C_PANEL_HI, hover_color="#16233a",
+            border_width=1, border_color=C_CYAN, text_color=C_CYAN,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._toggle_rkd_realtime)
+        self.rkd_rt_btn.pack(side="left", padx=(0, 6), pady=9)
+
         # Baseline
         ctk.CTkButton(actions, text="\u25c9 BASELINE",
                       width=120, height=34, corner_radius=8,
@@ -3818,7 +3829,35 @@ Security Score: {insight['metrics'][0][1]}
             self.after(0, lambda err=str(e): self.rkd_status.configure(
                 text=f"{t('error_lc')}: {err[:40]}", text_color=P["red"]))
 
-    def _run_rkdefense_scan(self):
+    def _toggle_rkd_realtime(self):
+        if getattr(self, "_rkd_rt_running", False):
+            self._rkd_rt_running = False
+            self.rkd_rt_btn.configure(text=t("realtime_btn"), border_color="#13a3a3")
+            self.rkd_engine_lbl.configure(text="\u25cf IDLE", text_color=self._rkd_palette["dim"])
+        else:
+            self._rkd_rt_running = True
+            self._rkd_alerted = False
+            self.rkd_rt_btn.configure(text=t("realtime_on"), border_color="#2dc97e")
+            threading.Thread(target=self._rkd_realtime_loop, daemon=True).start()
+
+    def _rkd_realtime_loop(self):
+        """Непрерывно гоняет детекторы и реагирует на атаку в реальном времени."""
+        import time
+        interval = 4 if not getattr(self, "_lite", False) else 7
+        while getattr(self, "_rkd_rt_running", False):
+            if getattr(self, "_current_page", "") != "rkdefense":
+                self._rkd_rt_running = False
+                break
+            try:
+                self._run_rkdefense_scan(realtime=True)
+            except Exception:
+                pass
+            for _ in range(interval * 2):
+                if not getattr(self, "_rkd_rt_running", False):
+                    break
+                time.sleep(0.5)
+
+    def _run_rkdefense_scan(self, realtime=False):
         """Запускает rootkit сканирование (SOC дизайн)."""
         from rootkit_detector import RootkitDetector
         P = self._rkd_palette
@@ -3903,7 +3942,11 @@ Security Score: {insight['metrics'][0][1]}
             self.after(0, lambda f=all_findings, t=threat: self._render_rkd_findings(f, t))
 
             if threat == "ВЫСОКАЯ":
-                self.after(600, lambda f=all_findings: self._show_defense_modal(f))
+                if not realtime or not getattr(self, "_rkd_alerted", False):
+                    self._rkd_alerted = True
+                    self.after(600, lambda f=all_findings: self._show_defense_modal(f))
+            else:
+                self._rkd_alerted = False
 
             if all_findings:
                 self._rkdefense_learn(all_findings)

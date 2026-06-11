@@ -1,11 +1,13 @@
 """
-process_monitor.py — мониторинг процессов через psutil.
+process_monitor.py — быстрый мониторинг процессов через psutil.
 
-Скоринг основан на интерпретируемых индикаторах вредоносного ПО
-(а НЕ на сетевой ML-модели CIC-IDS, которая раньше давала ложные «ВЫСОКАЯ»
-на каждый процесс). Индикаторы — из практик rkhunter / chkrootkit:
-запуск из /tmp, удалённый/безфайловый бинарь (memfd), подозрительные порты,
-маскировка под системный поток, аномальная активность.
+ПРОИЗВОДИТЕЛЬНОСТЬ:
+  • Соединения собираются ОДНИМ системным вызовом psutil.net_connections()
+    за цикл (раньше proc.net_connections() дёргался на каждый процесс —
+    это перечитывало все сокеты системы N раз и было главной причиной лагов).
+  • Статичные данные процесса (exe, имя, пользователь, длина cmdline)
+    кэшируются по PID и не перечитываются каждый цикл.
+Скоринг — интерпретируемая эвристика индикаторов малвари (rkhunter/chkrootkit).
 """
 import psutil
 import threading
@@ -35,52 +37,54 @@ class ProcessMonitor:
         self.running   = False
         self.results   = []
         self.callbacks = []
-        self.model_loaded = False  # сетевая ML тут намеренно не используется
+        self.model_loaded = False
+        self._static = {}   # кэш статичных данных по PID
 
-    def get_process_features(self, proc) -> dict:
+    def _conn_map(self):
+        """Один проход по всем сокетам системы → {pid: (n_conn, max_port)}."""
+        m = {}
         try:
-            with proc.oneshot():
-                cpu = proc.cpu_percent(interval=0.0)
-                mem = proc.memory_info()
-                try:
-                    try:
-                        connections = proc.net_connections()
-                    except AttributeError:
-                        connections = proc.connections()
-                    n_conn = len(connections)
-                    ports  = [c.laddr.port for c in connections if c.laddr] or [0]
-                    dst_port = max(ports)
-                except Exception:
-                    n_conn, dst_port = 0, 0
-                try:
-                    exe = proc.exe()
-                except Exception:
-                    exe = ""
-                exe_deleted = bool(exe) and ("(deleted)" in exe or "memfd:" in exe)
-                susp_path   = any(exe.startswith(d) for d in _SUSPICIOUS_DIRS)
-                try:
-                    name = proc.name()
-                except Exception:
-                    name = "?"
-                try:
-                    username = proc.username()
-                except Exception:
-                    username = "?"
-                try:
-                    cmd_len = len(" ".join(proc.cmdline()))
-                except Exception:
-                    cmd_len = 0
-                return {
-                    "pid": proc.pid, "name": name, "username": username,
-                    "cpu_percent": cpu, "mem_rss": mem.rss / 1024 / 1024,
-                    "n_conn": n_conn, "dst_port": dst_port, "cmd_len": cmd_len,
-                    "exe": exe, "exe_deleted": exe_deleted, "susp_path": susp_path,
-                }
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            return None
+            for c in psutil.net_connections(kind="inet"):
+                if c.pid is None:
+                    continue
+                port = c.laddr.port if c.laddr else 0
+                n, mx = m.get(c.pid, (0, 0))
+                m[c.pid] = (n + 1, max(mx, port))
+        except Exception:
+            pass
+        return m
+
+    def _static_info(self, proc):
+        """exe/username/name/cmd_len — кэшируется (не меняется за жизнь PID)."""
+        pid = proc.pid
+        cached = self._static.get(pid)
+        if cached is not None:
+            return cached
+        try:
+            exe = proc.exe()
+        except Exception:
+            exe = ""
+        try:
+            name = proc.name()
+        except Exception:
+            name = "?"
+        try:
+            username = proc.username()
+        except Exception:
+            username = "?"
+        try:
+            cmd_len = len(" ".join(proc.cmdline()))
+        except Exception:
+            cmd_len = 0
+        info = {
+            "name": name, "username": username, "exe": exe, "cmd_len": cmd_len,
+            "exe_deleted": bool(exe) and ("(deleted)" in exe or "memfd:" in exe),
+            "susp_path": any(exe.startswith(d) for d in _SUSPICIOUS_DIRS),
+        }
+        self._static[pid] = info
+        return info
 
     def score_process(self, f: dict):
-        """Возвращает (score 0..1, list[str] причин). Норм. процессы → ~0."""
         score, reasons = 0.0, []
         if f["exe_deleted"]:
             score += 0.55; reasons.append("безфайловый/удалённый бинарь")
@@ -105,18 +109,36 @@ class ProcessMonitor:
                 "СРЕДНЯЯ" if score >= 0.35 else "НИЗКАЯ")
 
     def scan_all_processes(self) -> list:
+        conn_map = self._conn_map()
+        alive = set()
         results = []
         for proc in psutil.process_iter(["pid", "name"]):
-            f = self.get_process_features(proc)
-            if f is None:
+            pid = proc.pid
+            alive.add(pid)
+            try:
+                with proc.oneshot():
+                    cpu = proc.cpu_percent(interval=0.0)
+                    rss = proc.memory_info().rss / 1024 / 1024
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
+            st = self._static_info(proc)
+            n_conn, dst_port = conn_map.get(pid, (0, 0))
+            f = {"pid": pid, "name": st["name"], "username": st["username"],
+                 "cpu_percent": cpu, "mem_rss": rss, "n_conn": n_conn,
+                 "dst_port": dst_port, "cmd_len": st["cmd_len"], "exe": st["exe"],
+                 "exe_deleted": st["exe_deleted"], "susp_path": st["susp_path"]}
             score, reasons = self.score_process(f)
             results.append({**f, "score": round(score, 4),
                             "threat": self.level_of(score), "reasons": reasons,
                             "time": datetime.now().strftime("%H:%M:%S")})
+        # чистим кэш от завершённых PID
+        for dead in set(self._static) - alive:
+            self._static.pop(dead, None)
         return sorted(results, key=lambda x: x["score"], reverse=True)
 
     def start_realtime(self, interval: int = _INTERVAL):
+        if self.running:
+            return
         self.running = True
         def loop():
             try:
@@ -134,24 +156,26 @@ class ProcessMonitor:
                             log.error(f"Callback ошибка: {e}")
                 except Exception as e:
                     log.error(f"Monitor loop ошибка: {e}")
-                time.sleep(interval)
+                # дробим сон, чтобы стоп срабатывал мгновенно
+                for _ in range(int(max(interval, 1) * 2)):
+                    if not self.running:
+                        break
+                    time.sleep(0.5)
         threading.Thread(target=loop, daemon=True).start()
         log.info(f"Real-time мониторинг запущен (интервал {interval}с)")
 
     def stop_realtime(self):
         self.running = False
-        log.info("Мониторинг остановлен")
 
     def add_callback(self, fn):
         self.callbacks.append(fn)
 
 
 if __name__ == "__main__":
-    monitor = ProcessMonitor()
-    print("Сканирование процессов...\n")
-    results = monitor.scan_all_processes()
-    print(f"{'PID':>6} {'Имя':<22} {'CPU%':>6} {'RAM MB':>8} {'Conn':>5} {'Score':>7} {'Угроза'}")
-    print("-" * 72)
-    for r in results[:20]:
-        print(f"{r['pid']:>6} {r['name'][:22]:<22} {r['cpu_percent']:>6.1f} "
-              f"{r['mem_rss']:>8.1f} {r['n_conn']:>5} {r['score']:>7.4f} {r['threat']}")
+    m = ProcessMonitor()
+    import time as _t
+    t0 = _t.time(); r = m.scan_all_processes(); dt = _t.time() - t0
+    print(f"Сканирование {len(r)} процессов за {dt*1000:.0f} мс\n")
+    for x in r[:15]:
+        print(f"{x['pid']:>6} {x['name'][:22]:<22} cpu={x['cpu_percent']:>5.1f} "
+              f"conn={x['n_conn']:>3} score={x['score']:.2f} {x['threat']}")

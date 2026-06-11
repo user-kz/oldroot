@@ -449,10 +449,24 @@ class RootkitGuard(ctk.CTk):
         self._current_page = key
         for k, btn in self.nav_buttons.items():
             btn.configure(fg_color="#1f538d" if k == key else "transparent")
+        # Мониторинг сканирует процессы только пока его страница открыта —
+        # иначе фоновый цикл нагружает CPU и лагает весь интерфейс.
+        if hasattr(self, "_monitor"):
+            if key == "monitor":
+                if not self._monitor.running:
+                    self._monitor.start_realtime(
+                        interval=6 if getattr(self, "_lite", False)
+                        else cfg.get("monitor", {}).get("interval_sec", 3))
+                    if hasattr(self, "mon_status"):
+                        self.mon_status.configure(text="● LIVE", text_color="#2dc97e")
+            else:
+                self._monitor.stop_realtime()
         if key == "monitor":
             self.after(50, self._refresh_monitor_table)
         if key == "analytics":
             self.after(50, self._refresh_analytics_snapshot)
+        if key == "home" and hasattr(self, "_restart_clock"):
+            self._restart_clock()
 
 
     def _show_lang_menu(self):
@@ -582,9 +596,11 @@ class RootkitGuard(ctk.CTk):
                 api_txt = "● API online" if self._api_available else "● API offline"
                 api_col = "#00ff88" if self._api_available else "#f39c12"
                 self.home_api_lbl.configure(text=api_txt, text_color=api_col)
-                self.after(1000, update_time)
+                if getattr(self, "_current_page", "home") == "home":
+                    self.after(1000, update_time)
             except Exception:
                 pass
+        self._restart_clock = lambda: self.after(200, update_time)
         self.after(100, update_time)
     
         # ── Выбор модели ──────────────────────────────────────────
@@ -3593,6 +3609,16 @@ Security Score: {insight['metrics'][0][1]}
                       command=self._clear_rkdefense
                       ).pack(side="left", padx=(0, 6), pady=9)
 
+        # Системный журнал (live) — что происходит вне программы
+        ctk.CTkButton(actions, text=t("syslog_btn"),
+                      width=150, height=34, corner_radius=8,
+                      fg_color="#13294a", hover_color="#1c3a63",
+                      border_width=1, border_color=C_CYAN,
+                      text_color=C_CYAN,
+                      font=ctk.CTkFont(family=MONO, size=11),
+                      command=self._open_syslog_window
+                      ).pack(side="left", padx=(0, 6), pady=9)
+
         # Threat-индикатор справа
         self.rkd_threat_lbl = ctk.CTkLabel(
             actions, text="",
@@ -3741,6 +3767,127 @@ Security Score: {insight['metrics'][0][1]}
         except Exception as e:
             self.after(0, lambda err=str(e): self.rkd_status.configure(
                 text=f"{t('error_lc')}: {err[:40]}", text_color=P["red"]))
+
+    def _open_syslog_window(self):
+        """Окно live-просмотра: системный журнал + появление/исчезновение
+        процессов и новых слушающих портов (что происходит ВНЕ программы)."""
+        if getattr(self, "_syslog_win", None) is not None:
+            try:
+                if self._syslog_win.winfo_exists():
+                    self._syslog_win.lift(); return
+            except Exception:
+                pass
+
+        import subprocess, shutil
+        win = ctk.CTkToplevel(self)
+        win.title(t("syslog_title"))
+        win.geometry("900x560")
+        win.configure(fg_color="#0a0e16")
+        self._syslog_win = win
+        self._syslog_running = True
+
+        bar = ctk.CTkFrame(win, fg_color="#0d1117", height=42)
+        bar.pack(fill="x"); bar.pack_propagate(False)
+        ctk.CTkLabel(bar, text="\U0001f4e1 " + t("syslog_title"),
+                     font=ctk.CTkFont(size=13, weight="bold"),
+                     text_color="#00d4ff").pack(side="left", padx=14)
+        status = ctk.CTkLabel(bar, text="● LIVE", text_color="#2dc97e",
+                              font=ctk.CTkFont(size=11, weight="bold"))
+        status.pack(side="left", padx=8)
+        self._syslog_autoscroll = True
+        ctk.CTkButton(bar, text=t("clear_btn"), width=90, height=26,
+                      fg_color="#1e293b", hover_color="#2d3748",
+                      command=lambda: box.delete("1.0", "end")).pack(side="right", padx=10)
+
+        box = ctk.CTkTextbox(win, font=ctk.CTkFont(family="monospace", size=11),
+                             fg_color="#06090f", text_color="#9fe7c0")
+        box.pack(fill="both", expand=True, padx=8, pady=8)
+
+        def append(line, tag=""):
+            if not self._syslog_running:
+                return
+            try:
+                box.insert("end", line.rstrip() + "\n")
+                # держим не больше ~500 строк, чтобы не разрасталось
+                if int(box.index("end-1c").split(".")[0]) > 500:
+                    box.delete("1.0", "100.0")
+                box.see("end")
+            except Exception:
+                pass
+
+        # ── Поток 1: системный журнал (journalctl -f / tail -F syslog) ──
+        def stream_syslog():
+            cmd = None
+            if shutil.which("journalctl"):
+                cmd = ["journalctl", "-f", "-n", "30", "--no-pager"]
+            elif __import__("os").path.exists("/var/log/syslog"):
+                cmd = ["tail", "-n", "30", "-F", "/var/log/syslog"]
+            if not cmd:
+                self.after(0, lambda: append("[!] Нет journalctl и /var/log/syslog. "
+                                             "Доступен мониторинг процессов/портов ниже."))
+                return
+            try:
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True, bufsize=1)
+                self._syslog_proc = proc
+                for line in proc.stdout:
+                    if not self._syslog_running:
+                        break
+                    self.after(0, lambda l=line: append("  " + l))
+            except Exception as e:
+                self.after(0, lambda: append(f"[!] Журнал недоступен: {e}"))
+
+        # ── Поток 2: события вне программы (процессы и порты, diff каждые 2с) ──
+        def watch_system():
+            import psutil, time as _t
+            prev_pids, prev_ports = None, None
+            while self._syslog_running:
+                try:
+                    cur_pids = {}
+                    for pr in psutil.process_iter(["pid", "name", "username"]):
+                        cur_pids[pr.info["pid"]] = (pr.info.get("name") or "?",
+                                                    pr.info.get("username") or "?")
+                    cur_ports = set()
+                    for c in psutil.net_connections(kind="inet"):
+                        if c.status == "LISTEN" and c.laddr:
+                            cur_ports.add(c.laddr.port)
+                    if prev_pids is not None:
+                        for pid in set(cur_pids) - set(prev_pids):
+                            n, u = cur_pids[pid]
+                            self.after(0, lambda p=pid, n=n, u=u:
+                                       append(f"[PROC +] PID {p} {n} (user={u})"))
+                        for pid in set(prev_pids) - set(cur_pids):
+                            n, _u = prev_pids[pid]
+                            self.after(0, lambda p=pid, n=n:
+                                       append(f"[PROC -] PID {p} {n} завершён"))
+                        for port in cur_ports - prev_ports:
+                            self.after(0, lambda p=port:
+                                       append(f"[PORT +] новый слушающий порт :{p}"))
+                        for port in prev_ports - cur_ports:
+                            self.after(0, lambda p=port:
+                                       append(f"[PORT -] порт :{p} закрыт"))
+                    prev_pids, prev_ports = cur_pids, cur_ports
+                except Exception:
+                    pass
+                for _ in range(4):
+                    if not self._syslog_running:
+                        break
+                    _t.sleep(0.5)
+
+        def on_close():
+            self._syslog_running = False
+            try:
+                if getattr(self, "_syslog_proc", None):
+                    self._syslog_proc.terminate()
+            except Exception:
+                pass
+            self._syslog_win = None
+            win.destroy()
+        win.protocol("WM_DELETE_WINDOW", on_close)
+
+        append(f"=== {t('syslog_title')} — старт {datetime.now().strftime('%H:%M:%S')} ===")
+        threading.Thread(target=stream_syslog, daemon=True).start()
+        threading.Thread(target=watch_system, daemon=True).start()
 
     def _clear_rkdefense(self):
         """Сбросить результаты последнего скана: находки, карточки, score."""

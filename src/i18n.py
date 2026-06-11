@@ -683,3 +683,7 @@ TRANSLATIONS["kz"].update({"an_cpu":"CPU жүктемесі","an_ram":"Жад","
 TRANSLATIONS["ru"].update({"set_lite": "Лёгкий режим (для слабых ПК)"})
 TRANSLATIONS["en"].update({"set_lite": "Lite mode (for weak machines)"})
 TRANSLATIONS["kz"].update({"set_lite": "Жеңіл режим (әлсіз ДК үшін)"})
+
+TRANSLATIONS["ru"].update({"syslog_btn":"\U0001f4e1 Журнал системы","syslog_title":"Системный журнал — LIVE"})
+TRANSLATIONS["en"].update({"syslog_btn":"\U0001f4e1 System log","syslog_title":"System log — LIVE"})
+TRANSLATIONS["kz"].update({"syslog_btn":"\U0001f4e1 Жүйе журналы","syslog_title":"Жүйе журналы — LIVE"})

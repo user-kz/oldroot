@@ -511,6 +511,16 @@ class RootkitGuard(ctk.CTk):
     
 
 
+    def _toggle_models(self):
+        """Свернуть/развернуть карточки моделей (позиция блоков сохраняется)."""
+        self._models_visible = not getattr(self, "_models_visible", True)
+        if self._models_visible:
+            self._models_frame.pack(fill="x")
+            self._models_toggle_btn.configure(text="▾  " + t("choose_model"))
+        else:
+            self._models_frame.pack_forget()
+            self._models_toggle_btn.configure(text="▸  " + t("choose_model"))
+
     def _page_home(self):
         from pathlib import Path
     
@@ -560,12 +570,20 @@ class RootkitGuard(ctk.CTk):
         self.after(100, update_time)
     
         # ── Выбор модели ──────────────────────────────────────────
-        ctk.CTkLabel(frame, text=t("choose_model"),
-                     font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color="#64748b").pack(anchor="w", padx=20, pady=(4, 6))
+        self._models_toggle_btn = ctk.CTkButton(
+            frame, text="▾  " + t("choose_model"), height=22,
+            fg_color="transparent", hover_color="#1e293b",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="#64748b", anchor="w",
+            command=self._toggle_models)
+        self._models_toggle_btn.pack(anchor="w", padx=14, pady=(4, 6))
     
-        models_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        models_frame.pack(fill="x", padx=16)
+        self._models_wrap = ctk.CTkFrame(frame, fg_color="transparent", height=0)
+        self._models_wrap.pack(fill="x", padx=16)
+        models_frame = ctk.CTkFrame(self._models_wrap, fg_color="transparent")
+        models_frame.pack(fill="x")
+        self._models_frame = models_frame
+        self._models_visible = True
     
         model_data = [
             {
@@ -748,7 +766,6 @@ class RootkitGuard(ctk.CTk):
         launch_frame.pack(fill="x", padx=16, pady=(10, 6))
         launch_frame.grid_columnconfigure(0, weight=3)
         launch_frame.grid_columnconfigure(1, weight=1)
-        launch_frame.grid_columnconfigure(2, weight=1)
     
         def launch_scan():
             if hasattr(self, '_home_selected_file'):
@@ -767,22 +784,13 @@ class RootkitGuard(ctk.CTk):
                       ).grid(row=0, column=0, padx=(0, 6), sticky="ew")
     
         ctk.CTkButton(launch_frame,
-                      text=t("rootkit_scan_btn"),
-                      height=46, corner_radius=10,
-                      fg_color="#1e293b", hover_color="#2d3748",
-                      text_color="#e2e8f0",
-                      font=ctk.CTkFont(size=13),
-                      command=lambda: self.show_page("rkdefense")
-                      ).grid(row=0, column=1, padx=(0, 6), sticky="ew")
-    
-        ctk.CTkButton(launch_frame,
                       text=t("analytics_btn"),
                       height=46, corner_radius=10,
                       fg_color="#1e293b", hover_color="#2d3748",
                       text_color="#e2e8f0",
                       font=ctk.CTkFont(size=13),
                       command=lambda: self.show_page("analytics")
-                      ).grid(row=0, column=2, sticky="ew")
+                      ).grid(row=0, column=1, sticky="ew")
 
         # ── Live Threat Monitor ───────────────────────────────────
         live_frame = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=12,

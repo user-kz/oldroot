@@ -25,7 +25,7 @@ TRANSLATIONS = {
         "report":         "Отчёт",
         "settings":       "Настройки",
         "about":          "О системе",
-        "choose_model":   "Выбери модель",
+        "choose_model":   "Модели",
         "load_dataset":   "Загрузи датасет",
         "drag_drop":      "Перетащи CSV файл сюда или нажми для выбора",
         "run_analysis":   "▶  ЗАПУСТИТЬ АНАЛИЗ",
@@ -83,7 +83,7 @@ TRANSLATIONS = {
         "report":         "Report",
         "settings":       "Settings",
         "about":          "About",
-        "choose_model":   "Choose model",
+        "choose_model":   "Models",
         "load_dataset":   "Load dataset",
         "drag_drop":      "Drag & drop CSV file here or click to browse",
         "run_analysis":   "▶  RUN ANALYSIS",
@@ -131,7 +131,7 @@ TRANSLATIONS = {
         "report":         "Есеп",
         "settings":       "Баптаулар",
         "about":          "Жүйе туралы",
-        "choose_model":   "Модельді таңдаңыз",
+        "choose_model":   "Модельдер",
         "load_dataset":   "Деректер жинағын жүктеңіз",
         "drag_drop":      "CSV файлды осында сүйреңіз немесе таңдау үшін басыңыз",
         "run_analysis":   "▶  ТАЛДАУДЫ ІСКЕ ҚОСУ",
@@ -172,9 +172,9 @@ for lang, keys in _add.items():
     TRANSLATIONS[lang].update(keys)
 
 _extra = {
-    "ru": {"rootkit_scan_btn": "🦠  Rootkit Scan", "analytics_btn": "📊  Аналитика"},
-    "en": {"rootkit_scan_btn": "🦠  Rootkit Scan", "analytics_btn": "📊  Analytics"},
-    "kz": {"rootkit_scan_btn": "🦠  Rootkit Scan", "analytics_btn": "📊  Аналитика"},
+    "ru": {"analytics_btn": "📊  Аналитика"},
+    "en": {"analytics_btn": "📊  Analytics"},
+    "kz": {"analytics_btn": "📊  Аналитика"},
 }
 for lang, keys in _extra.items():
     TRANSLATIONS[lang].update(keys)

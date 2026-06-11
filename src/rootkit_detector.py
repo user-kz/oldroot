@@ -482,6 +482,35 @@ class RootkitDetector:
         """Ищем backdoor порты и сравниваем ss с /proc/net/tcp."""
         findings = []
         backdoor_ports = {4444, 6666, 6667, 31337, 1337, 12345, 5555, 2323}
+        # Reverse-shell / C2: исходящие ESTABLISHED-соединения на backdoor-порты
+        try:
+            import psutil
+            for c in psutil.net_connections(kind="inet"):
+                if c.status != "ESTABLISHED" or not c.raddr:
+                    continue
+                if c.raddr.port in backdoor_ports or (c.laddr and c.laddr.port in backdoor_ports):
+                    pid = c.pid or "?"
+                    pname = ""
+                    try:
+                        pname = psutil.Process(c.pid).name() if c.pid else ""
+                    except Exception:
+                        pass
+                    findings.append(Finding(
+                        method   = "Reverse-shell / C2 Detection",
+                        severity = "ВЫСОКАЯ",
+                        title    = f"Подозрительное соединение на порт {c.raddr.port}",
+                        where    = f"PID {pid} ({pname}) → {c.raddr.ip}:{c.raddr.port}",
+                        how      = "Активное исходящее соединение на известный backdoor/C2-порт "
+                                   "(типичная сигнатура reverse-shell).",
+                        why      = "Reverse-shell даёт атакующему интерактивный доступ к системе "
+                                   "в обход входящего firewall.",
+                        fix      = f"sudo kill -9 {pid}\nsudo iptables -A OUTPUT -d {c.raddr.ip} -j DROP",
+                        mitre    = "T1059 (Command Execution), T1571 (Non-Standard Port)",
+                        evidence = f"{c.laddr.ip}:{c.laddr.port} -> {c.raddr.ip}:{c.raddr.port} ESTABLISHED"
+                    ))
+        except Exception:
+            pass
+
         try:
             ss_out = self._run(["ss", "-tlnp"])
             for line in ss_out.strip().split("\n")[1:]:

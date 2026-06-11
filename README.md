@@ -1,132 +1,94 @@
-# RootkitGuard v2.0
+# RootkitGuard v2.1
 
 **Система обнаружения rootkit-подобных аномалий на основе машинного обучения**
 
-МУИТ · Алматы · 2026 | Научный руководитель: Alin G.T.
-
+МУИТ · Алматы · 2026 · Научный руководитель: Alin G.T.
 Авторы: Амангелды Манас · Курманов Искандер · Куанышбек Бекарыс
 
 ---
 
-## Быстрый старт (Ubuntu 24 / VirtualBox)
+## Быстрый старт
+
+Нужен только [Python 3.10+](https://python.org). Зависимости поставятся сами при первом запуске.
+
+**Windows** — двойной клик по `start_windows.bat`
+
+**Linux / macOS:**
 
 ```bash
-# 1. Установить зависимости и зарегистрировать в меню Ubuntu
-chmod +x install.sh
-./install.sh
-
-# 2. Запустить GUI
-python3 main.py gui
-
-# 3. Запустить API (в отдельном терминале)
-python3 main.py api
-# → http://localhost:8000/docs
+chmod +x start.sh
+./start.sh
 ```
+
+> Linux: при ошибке venv/tkinter — `sudo apt install python3-venv python3-tk`
+> Ubuntu, ярлык в меню приложений: `./install.sh`
 
 ---
 
-## Команды CLI
+## Команды
 
 | Команда | Описание |
-|---------|----------|
-| `python3 main.py gui` | Графический интерфейс |
-| `python3 main.py api` | FastAPI сервер (порт 8000) |
-| `python3 main.py scan data/raw/file.csv` | Сканировать CSV |
-| `python3 main.py rootkit` | Rootkit-проверки системы |
-| `python3 main.py monitor` | Мониторинг процессов |
+|---|---|
+| `./start.sh` / `start_windows.bat` | GUI |
+| `./start.sh api` | FastAPI сервер → http://localhost:8000/docs |
+| `./start.sh scan data/raw/file.csv` | Сканировать CSV |
+| `./start.sh rootkit` | Rootkit-проверки системы (только Linux) |
+| `./start.sh monitor` | Мониторинг процессов в консоли |
+
+Docker (только API): `docker-compose up -d`
 
 ---
 
-## Структура проекта
+## Возможности
+
+- **ML-сканирование трафика** — Random Forest / XGBoost, обучено на CIC-IDS2018
+- **Rootkit-проверки (Linux)** — скрытые процессы (/proc vs ps), модули ядра, LD_PRELOAD, подозрительные порты, целостность системных файлов, привилегии
+- **GUI** (CustomTkinter): сканирование, мониторинг, аналитика, live-консоль, RK Defense, PDF-отчёты, настройки — 3 языка (RU/EN/KZ), экран входа
+- **REST API** (FastAPI + SQLite): история сканирований, PDF-отчёты, live-статистика
+- **Уведомления** на Windows / Linux / macOS при средней и высокой угрозе
+
+## API
+
+| Endpoint | Метод | Описание |
+|---|---|---|
+| `/scan` | POST | Сканировать CSV |
+| `/rootkit/scan` | POST | Rootkit-проверки системы |
+| `/history` | GET | История сканирований |
+| `/history/{id}` | DELETE | Удалить запись |
+| `/report/pdf/{id}` | GET | Скачать PDF-отчёт |
+| `/report/send` | POST | Отправить отчёт |
+| `/live/stats` | GET | Текущая статистика |
+| `/health` | GET | Статус сервера |
+
+---
+
+## Структура
 
 ```
-rootkitguard/
-├── main.py                  ← Единая точка входа (NEW)
-├── install.sh               ← Установщик Ubuntu 24
-├── requirements.txt
-├── docker-compose.yml
+oldroot/
+├── main.py                 ← точка входа (gui / api / scan / rootkit / monitor)
+├── start.sh                ← запуск Linux/macOS
+├── start_windows.bat       ← запуск Windows
+├── install.sh              ← ярлык в меню Ubuntu
 ├── config/
-│   └── config.yaml          ← Все настройки (NEW)
+│   └── config.example.yaml ← шаблон настроек (копируется в config.yaml)
 ├── src/
-│   ├── rootkitguard.py      ← GUI (обновлён)
-│   ├── api.py               ← FastAPI (обновлён)
-│   ├── rootkit_checker.py   ← Linux rootkit checks (NEW)
-│   ├── process_monitor.py   ← Мониторинг процессов (исправлен)
-│   ├── notifier.py          ← Desktop уведомления (NEW)
-│   ├── logger.py            ← Логирование с ротацией (NEW)
-│   ├── config_loader.py     ← Загрузчик конфига (NEW)
-│   ├── pdf_report.py        ← PDF отчёты
-│   ├── feature_extractor.py
-│   ├── preprocessor.py
-│   ├── train_cicids.py
-│   └── train_models.py
-├── models/                  ← rf_cicids.pkl, scaler_cicids.pkl
-├── data/raw/                ← friday_traffic.csv
-├── reports/                 ← PDF / JSON отчёты
-├── logs/                    ← rootkitguard.log
-└── assets/
-    └── icon.png
+│   ├── rootkitguard.py     ← GUI
+│   ├── api.py              ← FastAPI
+│   ├── rootkit_checker.py  ← Linux rootkit-проверки
+│   ├── threat_monitor.py   ← адаптивный мониторинг угроз
+│   ├── process_monitor.py  ← мониторинг процессов
+│   ├── live_capture.py     ← захват трафика
+│   ├── pdf_report.py       ← PDF-отчёты
+│   ├── train_cicids.py     ← обучение моделей
+│   └── ...
+├── models/                 ← rf_cicids.pkl, scaler_cicids.pkl
+└── data/raw/               ← датасеты CSV
 ```
-
----
-
-## Что нового в v2.0
-
-### Rootkit Checker (src/rootkit_checker.py)
-Linux-специфичные проверки для темы диплома:
-- **Скрытые процессы** — сравнение /proc vs `ps`
-- **Модули ядра** — `lsmod` vs `/proc/modules` (расхождения = rootkit!)
-- **LD_PRELOAD инъекция** — `/etc/ld.so.preload`
-- **Подозрительные порты** — `/proc/net/tcp` напрямую
-- **Системные файлы** — проверка владельца и baseline hash
-- **Привилегии** — UID=0 у не-root пользователей
-
-### Интеграция GUI → API
-- Страница «Сканирование» отправляет файл в `/scan` endpoint
-- Checkbox «Через API» / fallback на локальный режим
-- Страница «Отчёт» генерирует настоящий PDF через pdf_report.py
-
-### Настройки в GUI
-- Порог аномалии, интервал мониторинга, уведомления — всё через UI
-- Сохраняется в `config/config.yaml`
-
-### Исправленные баги
-- `proc.connections()` → `proc.net_connections()` (psutil 6.0+)
-- `except:` → `except Exception:` везде
-
----
 
 ## Обучение моделей
 
 ```bash
-# Скачай датасет CIC-IDS2018, положи в data/raw/friday_traffic.csv
-python3 src/train_cicids.py
-# Модели сохранятся в models/
+# Скачай CIC-IDS2018 → data/raw/friday_traffic.csv
+python3 src/train_cicids.py    # модели сохранятся в models/
 ```
-
----
-
-## Docker (только API)
-
-```bash
-docker-compose up -d
-# GUI запускается отдельно на хосте
-python3 main.py gui
-```
-
----
-
-## API Endpoints
-
-| Endpoint | Метод | Описание |
-|----------|-------|----------|
-| `/scan` | POST | Сканировать CSV файл |
-| `/rootkit/scan` | POST | Rootkit-проверки системы |
-| `/history` | GET | История сканирований |
-| `/report/pdf/{id}` | GET | Скачать PDF отчёт |
-| `/live/stats` | GET | Текущая статистика |
-| `/health` | GET | Статус сервера |
-| `/docs` | GET | Swagger UI |
-# oldrootkitGuard
-# oldrootkit
-# oldroot

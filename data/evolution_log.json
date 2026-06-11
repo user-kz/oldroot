@@ -1,0 +1,245 @@
+{
+  "version": 68,
+  "history": [
+    {
+      "version": 49,
+      "timestamp": "2026-06-01T21:06:28.592670",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1010,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 50,
+      "timestamp": "2026-06-01T21:06:44.756016",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1030,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 51,
+      "timestamp": "2026-06-01T21:07:01.273409",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1050,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 52,
+      "timestamp": "2026-06-01T21:07:18.470209",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1070,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 53,
+      "timestamp": "2026-06-01T21:07:34.556954",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1090,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 54,
+      "timestamp": "2026-06-01T21:07:49.724613",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1110,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 55,
+      "timestamp": "2026-06-01T21:08:05.794326",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1130,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 56,
+      "timestamp": "2026-06-01T21:08:20.713807",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1150,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 57,
+      "timestamp": "2026-06-01T21:08:35.710862",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1170,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 58,
+      "timestamp": "2026-06-01T21:08:51.775888",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1190,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 59,
+      "timestamp": "2026-06-01T21:09:08.052351",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1210,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 60,
+      "timestamp": "2026-06-01T21:09:24.458319",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1230,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 61,
+      "timestamp": "2026-06-01T21:09:39.906008",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1250,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 62,
+      "timestamp": "2026-06-01T21:09:55.228228",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1270,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 63,
+      "timestamp": "2026-06-01T21:10:12.300341",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1290,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 64,
+      "timestamp": "2026-06-01T21:10:29.014262",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1310,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 65,
+      "timestamp": "2026-06-01T21:10:45.481788",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1330,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 66,
+      "timestamp": "2026-06-01T21:11:02.637817",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1350,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 67,
+      "timestamp": "2026-06-01T21:11:17.561855",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 1370,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 68,
+      "timestamp": "2026-06-03T18:17:54.144874",
+      "new_samples": 50,
+      "new_trees": 20,
+      "total_trees": 1390,
+      "labels": {
+        "anomaly": 50,
+        "normal": 0
+      },
+      "status": "success"
+    }
+  ]
+}

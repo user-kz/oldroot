@@ -43,7 +43,7 @@ Docker (только API): `docker-compose up -d`
 
 - **ML-сканирование трафика** — Random Forest / XGBoost, обучено на CIC-IDS2018
 - **Rootkit-проверки (Linux)** — скрытые процессы (/proc vs ps), модули ядра, LD_PRELOAD, подозрительные порты, целостность системных файлов, привилегии
-- **GUI** (CustomTkinter): сканирование, мониторинг, аналитика, live-консоль, RK Defense, PDF-отчёты, настройки — 3 языка (RU/EN/KZ), экран входа
+- **GUI** (CustomTkinter): сканирование, мониторинг, аналитика, Rootkit Defense, PDF-отчёты, настройки — 3 языка (RU/EN/KZ), экран входа
 - **REST API** (FastAPI + SQLite): история сканирований, PDF-отчёты, live-статистика
 - **Уведомления** на Windows / Linux / macOS при средней и высокой угрозе
 

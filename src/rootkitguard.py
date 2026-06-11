@@ -181,14 +181,14 @@ class RootkitGuard(ctk.CTk):
 
     def _start_api(self):
         if self._api_available:
-            self.api_lbl.configure(text="● API уже запущен", text_color="#2dc97e")
+            self.api_lbl.configure(text=t("api_running"), text_color="#2dc97e")
             return
         try:
             main_py = str(Path(__file__).parent.parent / "main.py")
             self._api_proc = subprocess.Popen(
                 [sys.executable, main_py, "api"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.api_lbl.configure(text="● API запускается...", text_color="yellow")
+            self.api_lbl.configure(text=t("api_starting"), text_color="yellow")
             threading.Thread(target=self._wait_api, daemon=True).start()
         except Exception as e:
             log.error(f"API запуск: {e}")
@@ -206,7 +206,7 @@ class RootkitGuard(ctk.CTk):
             except Exception:
                 pass
         self.after(0, lambda: self.api_lbl.configure(
-            text="● API не отвечает", text_color="red"))
+            text=t("api_no_resp"), text_color="red"))
 
     def _auto_startup_scan(self):
         """При запуске автоматически делает Rootkit Scan в фоне."""
@@ -266,9 +266,9 @@ class RootkitGuard(ctk.CTk):
             self.clipboard_append(text)
             self.update()
             if hasattr(self, "_copy_btn"):
-                self._copy_btn.configure(text="\u2713 Скопировано!")
+                self._copy_btn.configure(text=t("copied"))
                 self.after(2000, lambda: self._copy_btn.configure(
-                    text="\U0001f4cb Копировать всё"))
+                    text=t("copy_all")))
         except Exception as e:
             print(f"Ошибка копирования: {e}")
 
@@ -296,7 +296,6 @@ class RootkitGuard(ctk.CTk):
 
         pages = [
             ("  🏠  Главная",       "home"),
-            ("  💻  Defense Console","console"),
             ("  🛡  Rootkit Defense","rkdefense"),
             ("  🔍  Сканирование",  "scan"),
             ("  👁   Мониторинг",   "monitor"),
@@ -345,7 +344,7 @@ class RootkitGuard(ctk.CTk):
         # API статус + кнопка запуска
         api_row = ctk.CTkFrame(self.nav, fg_color="transparent")
         api_row.pack(side="bottom", fill="x", padx=8, pady=(0, 2))
-        self.api_lbl = ctk.CTkLabel(api_row, text="● API проверка...",
+        self.api_lbl = ctk.CTkLabel(api_row, text=t("api_checking"),
                                      text_color="gray", font=ctk.CTkFont(size=11))
         self.api_lbl.pack(side="left")
         ctk.CTkButton(api_row, text="▶", width=28, height=22,
@@ -353,7 +352,8 @@ class RootkitGuard(ctk.CTk):
                       command=lambda: threading.Thread(
                           target=self._start_api, daemon=True).start()
                       ).pack(side="right")
-        self._lang_btn = ctk.CTkButton(api_row, text="РУС", width=52, height=22,
+        self._lang_btn = ctk.CTkButton(api_row,
+            text={"ru": "РУС", "en": "ENG", "kz": "ҚАЗ"}.get(get_lang(), "РУС"), width=52, height=22,
             fg_color="transparent", hover_color="#1e293b",
             font=ctk.CTkFont(size=10), corner_radius=6,
             text_color="#64748b",
@@ -369,7 +369,6 @@ class RootkitGuard(ctk.CTk):
 
         self.pages = {
             "home":      self._page_home(),
-            "console":   self._page_console(),
             "rkdefense": self._page_rkdefense(),
             "scan":      self._page_scan(),
             "monitor":   self._page_monitor(),
@@ -385,7 +384,7 @@ class RootkitGuard(ctk.CTk):
             # Сворачиваем
             self.nav.configure(width=50)
             for key, btn in self.nav_buttons.items():
-                icons = {"home":"🏠","console":"💻","rkdefense":"🛡","scan":"🔍",
+                icons = {"home":"🏠","rkdefense":"🛡","scan":"🔍",
                          "monitor":"👁","analytics":"📊",
                          "report":"📄","settings":"⚙️","about":"ℹ️"}
                 btn.configure(text=f"  {icons.get(key,'●')}")
@@ -404,7 +403,6 @@ class RootkitGuard(ctk.CTk):
             self.nav.configure(width=210)
             pages_nav = [
                 (t("home"),          "home"),
-                ("Defense Console",  "console"),
                 ("Rootkit Defense",  "rkdefense"),
                 (t("scan"),          "scan"),
                 (t("monitor"),       "monitor"),
@@ -413,7 +411,7 @@ class RootkitGuard(ctk.CTk):
                 (t("settings"),      "settings"),
                 (t("about"),         "about"),
             ]
-            icons = ["🏠","💻","🛡","🔍","👁","📊","📄","⚙️","ℹ️"]
+            icons = ["🏠","🛡","🔍","👁","📊","📄","⚙️","ℹ️"]
             for (label, key), icon in zip(pages_nav, icons):
                 self.nav_buttons[key].configure(text=f"  {icon}  {label}")
             self._toggle_btn.configure(text="◀")
@@ -461,7 +459,6 @@ class RootkitGuard(ctk.CTk):
             p.destroy()
         self.pages = {
             "home":      self._page_home(),
-            "console":   self._page_console(),
             "rkdefense": self._page_rkdefense(),
             "scan":      self._page_scan(),
             "monitor":   self._page_monitor(),
@@ -473,7 +470,6 @@ class RootkitGuard(ctk.CTk):
         # Обновляем навигацию
         pages_nav = [
             (t("home"),         "home"),
-            ("Defense Console", "console"),
             ("Rootkit Defense", "rkdefense"),
             (t("scan"),         "scan"),
             (t("monitor"),      "monitor"),
@@ -482,7 +478,7 @@ class RootkitGuard(ctk.CTk):
             (t("settings"),     "settings"),
             (t("about"),        "about"),
         ]
-        icons = ["🏠","🔍","🦠","👁","📊","📄","⚙️","ℹ️"]
+        icons = ["🏠","🛡","🔍","👁","📊","📄","⚙️","ℹ️"]
         for (label, key), icon in zip(pages_nav, icons):
             if key in self.nav_buttons:
                 self.nav_buttons[key].configure(text=f"  {icon}  {label}")
@@ -498,17 +494,17 @@ class RootkitGuard(ctk.CTk):
         self.show_page("home")
         
     def _gen_demo_models_thread(self):
-        self.model_lbl.configure(text="⏳ Генерация...", text_color="yellow")
+        self.model_lbl.configure(text=t("generating"), text_color="yellow")
         try:
             generate_demo_models()
             self._load_models()
             if self.model_loaded:
-                self.model_lbl.configure(text="● Модель загружена", text_color="#2dc97e")
+                self.model_lbl.configure(text=t("model_loaded"), text_color="#2dc97e")
             else:
-                self.model_lbl.configure(text="● Ошибка загрузки", text_color="red")
+                self.model_lbl.configure(text=t("model_load_error"), text_color="red")
         except Exception as e:
             log.error(f"Demo model error: {e}")
-            self.model_lbl.configure(text="● Ошибка", text_color="red")
+            self.model_lbl.configure(text=t("error_dot"), text_color="red")
 
     # ── Главная ─────────────────────────────────────────────────
 
@@ -800,7 +796,7 @@ class RootkitGuard(ctk.CTk):
                      font=ctk.CTkFont(size=11, weight="bold"),
                      text_color="#e74c3c").pack(side="left")
 
-        self.live_status_lbl = ctk.CTkLabel(live_hdr, text="● Остановлен",
+        self.live_status_lbl = ctk.CTkLabel(live_hdr, text=t("stopped"),
                                              font=ctk.CTkFont(size=10),
                                              text_color="#475569")
         self.live_status_lbl.pack(side="right")
@@ -837,7 +833,7 @@ class RootkitGuard(ctk.CTk):
         # Карточка цикл
         c1 = ctk.CTkFrame(stats_col, fg_color="#0a0e1a", corner_radius=8)
         c1.grid(row=0, column=0, padx=2, sticky="ew")
-        ctk.CTkLabel(c1, text="Цикл", font=ctk.CTkFont(size=9),
+        ctk.CTkLabel(c1, text=t("cycle"), font=ctk.CTkFont(size=9),
                      text_color="#475569").pack(pady=(6, 0))
         self.live_cycle_lbl = ctk.CTkLabel(c1, text="—",
                                             font=ctk.CTkFont(size=16, weight="bold"),
@@ -847,7 +843,7 @@ class RootkitGuard(ctk.CTk):
         # Карточка угроза
         c2 = ctk.CTkFrame(stats_col, fg_color="#0a0e1a", corner_radius=8)
         c2.grid(row=0, column=1, padx=2, sticky="ew")
-        ctk.CTkLabel(c2, text="Угроза", font=ctk.CTkFont(size=9),
+        ctk.CTkLabel(c2, text=t("threat"), font=ctk.CTkFont(size=9),
                      text_color="#475569").pack(pady=(6, 0))
         self.live_threat_lbl = ctk.CTkLabel(c2, text="—",
                                              font=ctk.CTkFont(size=16, weight="bold"),
@@ -857,7 +853,7 @@ class RootkitGuard(ctk.CTk):
         # Карточка тип атаки
         c3 = ctk.CTkFrame(stats_col, fg_color="#0a0e1a", corner_radius=8)
         c3.grid(row=0, column=2, padx=2, sticky="ew")
-        ctk.CTkLabel(c3, text="Тип атаки", font=ctk.CTkFont(size=9),
+        ctk.CTkLabel(c3, text=t("attack_type"), font=ctk.CTkFont(size=9),
                      text_color="#475569").pack(pady=(6, 0))
         self.live_attack_lbl = ctk.CTkLabel(c3, text="—",
                                              font=ctk.CTkFont(size=11, weight="bold"),
@@ -880,7 +876,7 @@ class RootkitGuard(ctk.CTk):
         # Переключатель модели для Live Monitor
         model_row = ctk.CTkFrame(live_frame, fg_color="transparent")
         model_row.pack(fill="x", padx=12, pady=(0, 6))
-        ctk.CTkLabel(model_row, text="Модель:",
+        ctk.CTkLabel(model_row, text=t("model_colon"),
                      font=ctk.CTkFont(size=10), text_color="#475569"
                      ).pack(side="left", padx=(0, 8))
         self.live_model_selector = ctk.CTkSegmentedButton(
@@ -901,14 +897,14 @@ class RootkitGuard(ctk.CTk):
         self.live_model_name_lbl.pack(side="left", padx=8)
         
         self.live_start_btn = ctk.CTkButton(
-            btn_row, text="▶  Запустить мониторинг",
+            btn_row, text=t("start_monitoring"),
             height=34, corner_radius=8,
             fg_color="#7a1e1e", hover_color="#c0392b",
             font=ctk.CTkFont(size=12, weight="bold"),
             command=self._toggle_live_monitor)
         self.live_start_btn.pack(side="left", padx=(0, 6))
 
-        ctk.CTkButton(btn_row, text="📋  История",
+        ctk.CTkButton(btn_row, text=t("history_btn"),
                       height=34, corner_radius=8, width=100,
                       fg_color="#1e293b", hover_color="#2d3748",
                       font=ctk.CTkFont(size=11),
@@ -967,9 +963,9 @@ class RootkitGuard(ctk.CTk):
             self._live_monitor_running = False
             self._threat_monitor.stop()
             self.live_start_btn.configure(
-                text="▶  Запустить мониторинг", fg_color="#7a1e1e")
+                text=t("start_monitoring"), fg_color="#7a1e1e")
             self.live_status_lbl.configure(
-                text="● Остановлен", text_color="#475569")
+                text=t("stopped"), text_color="#475569")
         else:
             self._live_monitor_running = True
             from threat_monitor import ThreatMonitor
@@ -981,9 +977,9 @@ class RootkitGuard(ctk.CTk):
                 self._on_live_model_select(val)
             self._threat_monitor.start()
             self.live_start_btn.configure(
-                text="⏹  Остановить", fg_color="#e74c3c")
+                text=t("stop_btn"), fg_color="#e74c3c")
             self.live_status_lbl.configure(
-                text="● Активен", text_color="#e74c3c")
+                text=t("active"), text_color="#e74c3c")
 
     def _on_live_event(self, event: dict):
         etype = event.get("type")
@@ -992,7 +988,7 @@ class RootkitGuard(ctk.CTk):
             self.after(0, lambda e=event: [
                 self.live_cycle_lbl.configure(text=str(e["cycle"])),
                 self.live_status_lbl.configure(
-                    text=f"● Цикл #{e['cycle']} — захват...",
+                    text=f"● {t('cycle')} #{e['cycle']} — {t('capture')}",
                     text_color="#f39c12"),
             ])
 
@@ -1011,7 +1007,7 @@ class RootkitGuard(ctk.CTk):
             color = color_map.get(threat, "#475569")
             bar_color = color
 
-            def update_ui(d=data, t=threat, c=color, s=score, at=atype, ts=ts):
+            def update_ui(d=data, thr=threat, c=color, s=score, at=atype, ts=ts):
                 # Обновляем Threat Score
                 self.live_score_lbl.configure(
                     text=str(s), text_color=c)
@@ -1019,14 +1015,14 @@ class RootkitGuard(ctk.CTk):
                 self.live_score_bar.set(s / 100)
 
                 # Карточки
-                self.live_threat_lbl.configure(text=t, text_color=c)
-                self.live_attack_lbl.configure(text=at if t != "НИЗКАЯ" else "—", text_color=c)
+                self.live_threat_lbl.configure(text=thr, text_color=c)
+                self.live_attack_lbl.configure(text=at if thr != "НИЗКАЯ" else "—", text_color=c)
                 self.live_status_lbl.configure(
-                    text=f"● Активен — {t}", text_color=c)
+                    text=f"{t('active')} — {thr}", text_color=c)
 
                 # Timeline
-                icon = "🔴" if t == "ВЫСОКАЯ" else "🟡" if t == "СРЕДНЯЯ" else "🟢"
-                line = f"[{ts}] {icon} {t} | {d['anomalies']}/{d['total']} аномалий | {at}\n"
+                icon = "🔴" if thr == "ВЫСОКАЯ" else "🟡" if thr == "СРЕДНЯЯ" else "🟢"
+                line = f"[{ts}] {icon} {thr} | {d['anomalies']}/{d['total']} аномалий | {at}\n"
                 self.live_timeline.configure(state="normal")
                 self.live_timeline.insert("end", line)
                 self.live_timeline.see("end")
@@ -1074,7 +1070,7 @@ class RootkitGuard(ctk.CTk):
                                 # Дообучаем если накопилось достаточно
                                 if learner.should_retrain():
                                     self.after(0, lambda: self.learn_lbl.configure(
-                                        text="🧠 Обучение...",
+                                        text=t("training"),
                                         text_color="#f59e0b"))
                                     result = learner.retrain()
                                     if result.get("status") == "success":
@@ -1115,11 +1111,11 @@ class RootkitGuard(ctk.CTk):
 
         elif etype == "no_traffic":
             self.after(0, lambda: self.live_status_lbl.configure(
-                text="● Нет трафика", text_color="#475569"))
+                text=t("no_traffic"), text_color="#475569"))
 
         elif etype == "error":
             self.after(0, lambda e=event: self.live_status_lbl.configure(
-                text=f"● Ошибка: {e['msg'][:30]}", text_color="#e74c3c"))
+                text=f"● {t('error')}: {e['msg'][:30]}", text_color="#e74c3c"))
 
     def _show_live_history(self):
         if not hasattr(self, '_threat_monitor'):
@@ -1134,7 +1130,7 @@ class RootkitGuard(ctk.CTk):
         win.configure(fg_color="#0a0e1a")
         win.lift()
 
-        ctk.CTkLabel(win, text="📋  История мониторинга",
+        ctk.CTkLabel(win, text=t("monitor_history"),
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color="#00d4ff").pack(pady=(16, 8))
 
@@ -1176,7 +1172,7 @@ class RootkitGuard(ctk.CTk):
         hdr = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=12,
                            border_width=1, border_color="#1e293b")
         hdr.pack(fill="x", padx=20, pady=(10, 5))
-        ctk.CTkLabel(hdr, text="🔍  Сканирование файлов",
+        ctk.CTkLabel(hdr, text=t("file_scanning"),
                      font=ctk.CTkFont(size=20, weight="bold")).pack(side="left", padx=16, pady=12)
         self._scan_model_selector = ctk.CTkSegmentedButton(
             hdr,
@@ -1199,7 +1195,7 @@ class RootkitGuard(ctk.CTk):
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color="#85B7EB").pack(side="left", padx=14, pady=12)
         self.file_path = ctk.CTkEntry(ff, width=400,
-                                       placeholder_text="Выбери CSV файл...",
+                                       placeholder_text=t("choose_csv"),
                                        font=ctk.CTkFont(size=12))
         self.file_path.pack(side="left", padx=5)
         ctk.CTkButton(ff, text="📁 " + t("browse"), width=100, height=32,
@@ -1490,7 +1486,7 @@ class RootkitGuard(ctk.CTk):
         ts   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            self.scan_status.configure(text="Загрузка...", text_color="yellow")
+            self.scan_status.configure(text=t("loading"), text_color="yellow")
             self.scan_progress.set(0.1)
             log_ui(f"[{ts}] Файл: {path}")
 
@@ -1541,7 +1537,7 @@ class RootkitGuard(ctk.CTk):
             df = df[feat_cols]
 
             self.scan_progress.set(0.5)
-            self.scan_status.configure(text="Анализ моделью...")
+            self.scan_status.configure(text=t("analyzing"))
 
             model_used = self._scan_model_selector.get() if hasattr(self, '_scan_model_selector') else "RF"
             insight = {}
@@ -1676,7 +1672,7 @@ class RootkitGuard(ctk.CTk):
         except Exception as e:
             log_ui(f"[!] Ошибка: {e}")
             log.error(f"Scan error: {e}")
-            self.scan_status.configure(text="Ошибка!", text_color="red")
+            self.scan_status.configure(text=t("error_excl"), text_color="red")
 
         self.scan_result.configure(state="disabled")
 
@@ -1753,7 +1749,7 @@ class RootkitGuard(ctk.CTk):
                 log_ui(f"\n  ➡️  Без изменений: {curr_anom} аномалий")
 
         self.scan_status.configure(
-            text=f"✓ Готово — угроза: {threat}", text_color=threat_color)
+            text=f"✓ {t('done')} — {t('threat')}: {threat}", text_color=threat_color)
         self.after(0, lambda d=data, th=threat, c=threat_color: 
                    self._show_threat_panel(d, th, c))
         # Показываем Threat Intelligence Panel
@@ -1829,7 +1825,7 @@ class RootkitGuard(ctk.CTk):
         # Описание
         desc_col = ctk.CTkFrame(content, fg_color="#0a0e1a", corner_radius=8)
         desc_col.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=4)
-        ctk.CTkLabel(desc_col, text="Как работает:",
+        ctk.CTkLabel(desc_col, text=t("how_it_works"),
                      font=ctk.CTkFont(size=10), text_color="#475569").pack(anchor="w", padx=10, pady=(8, 2))
         ctk.CTkLabel(desc_col, text=insight.get("desc", ""),
                      font=ctk.CTkFont(size=11),
@@ -1851,7 +1847,7 @@ class RootkitGuard(ctk.CTk):
         # Кнопка AI анализа
         ai_btn = ctk.CTkButton(
             self._insight_panel,
-            text="🤖  Спросить AI",
+            text=t("ask_ai"),
             height=36, corner_radius=8,
             fg_color="#1e293b", hover_color="#2d3748",
             font=ctk.CTkFont(size=12),
@@ -2035,15 +2031,15 @@ class RootkitGuard(ctk.CTk):
         hdr = ctk.CTkFrame(modal, fg_color="#1a0000", corner_radius=10,
                             border_width=1, border_color="#e74c3c")
         hdr.pack(fill="x", padx=20, pady=(20, 10))
-        ctk.CTkLabel(hdr, text="🔴  ВЫСОКАЯ УГРОЗА ОБНАРУЖЕНА",
+        ctk.CTkLabel(hdr, text=t("high_threat_hdr"),
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color="#e74c3c").pack(pady=(12, 4))
-        ctk.CTkLabel(hdr, text=f"Аномалий: {data.get('anomalies',0):,}  ({pct:.1f}%)  ·  Атакованные порты: {ports[:3]}",
+        ctk.CTkLabel(hdr, text=f"{t('anomalies')}: {data.get('anomalies',0):,}  ({pct:.1f}%)  ·  {t('attacked_ports')}: {ports[:3]}",
                      font=ctk.CTkFont(size=11),
                      text_color="#94a3b8").pack(pady=(0, 12))
 
         # Шаги защиты
-        ctk.CTkLabel(modal, text="Выбери действия для защиты:",
+        ctk.CTkLabel(modal, text=t("choose_actions"),
                      font=ctk.CTkFont(size=12, weight="bold"),
                      text_color="#64748b").pack(anchor="w", padx=20, pady=(0, 8))
 
@@ -2100,21 +2096,21 @@ class RootkitGuard(ctk.CTk):
         btns.grid_columnconfigure(1, weight=1)
         btns.grid_columnconfigure(2, weight=1)
 
-        ctk.CTkButton(btns, text="🔒  Блокировать порты",
+        ctk.CTkButton(btns, text=t("block_ports"),
                       height=42, corner_radius=8,
                       fg_color="#1a3a1a", hover_color="#2d6a4f",
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=block_ports
                       ).grid(row=0, column=1, padx=4, sticky="ew")
 
-        ctk.CTkButton(btns, text="📕  PDF отчёт",
+        ctk.CTkButton(btns, text=t("pdf_report_btn"),
                       height=42, corner_radius=8,
                       fg_color="#1a1a3a", hover_color="#1f538d",
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=create_report
                       ).grid(row=0, column=2, padx=4, sticky="ew")
 
-        ctk.CTkButton(modal, text="✕  Закрыть",
+        ctk.CTkButton(modal, text=t("close_btn"),
                       height=36, corner_radius=8,
                       fg_color="transparent", border_width=1,
                       border_color="#2d3748",
@@ -2152,7 +2148,7 @@ class RootkitGuard(ctk.CTk):
         self.rk_threat_lbl.pack(side="left", padx=10)
         btns = ctk.CTkFrame(hdr, fg_color="transparent")
         btns.pack(side="right", padx=12)
-        ctk.CTkButton(btns, text="▶  Запустить", width=140, height=34,
+        ctk.CTkButton(btns, text=t("run_btn"), width=140, height=34,
                       fg_color="#7a1e1e", hover_color="#c0392b",
                       corner_radius=8,
                       font=ctk.CTkFont(size=12, weight="bold"),
@@ -2178,7 +2174,7 @@ class RootkitGuard(ctk.CTk):
                                           font=ctk.CTkFont(size=32, weight="bold"),
                                           text_color="#475569")
         self.rk_score_lbl.pack(anchor="w")
-        self.rk_status = ctk.CTkLabel(score_frame, text="Готов к сканированию",
+        self.rk_status = ctk.CTkLabel(score_frame, text=t("ready_to_scan"),
                                        text_color="#475569",
                                        font=ctk.CTkFont(size=12))
         self.rk_status.pack(side="left", padx=20)
@@ -2227,7 +2223,7 @@ class RootkitGuard(ctk.CTk):
         ctk.CTkLabel(dna_hdr, text="🧬  System DNA",
                      font=ctk.CTkFont(size=11, weight="bold"),
                      text_color="#475569").pack(side="left")
-        self.rk_dna_lbl = ctk.CTkLabel(dna_hdr, text="Нет данных",
+        self.rk_dna_lbl = ctk.CTkLabel(dna_hdr, text=t("no_data"),
                                         font=ctk.CTkFont(size=10),
                                         text_color="#475569")
         self.rk_dna_lbl.pack(side="right")
@@ -2257,7 +2253,7 @@ class RootkitGuard(ctk.CTk):
 
         self.rk_output.configure(state="normal")
         self.rk_output.delete("1.0", "end")
-        self.rk_status.configure(text="Сканирование...", text_color="yellow")
+        self.rk_status.configure(text=t("scanning"), text_color="yellow")
         self.rk_score_lbl.configure(text="...", text_color="#f39c12")
         self.rk_progress.set(0)
         self.rk_threat_lbl.configure(text="")
@@ -2321,7 +2317,7 @@ class RootkitGuard(ctk.CTk):
             self.after(0, lambda s=score, c=score_color: 
                        self.rk_score_lbl.configure(text=f"{s}", text_color=c))
             self.after(0, lambda: self.rk_status.configure(
-                text="Завершено", text_color="#2dc97e"))
+                text=t("finished"), text_color="#2dc97e"))
             self.after(0, lambda t=threat, c=threat_color:
                        self.rk_threat_lbl.configure(
                            text=f"● {t}", text_color=c))
@@ -2370,7 +2366,7 @@ class RootkitGuard(ctk.CTk):
                     self.rk_dna_box.insert("end", t),
                     self.rk_dna_box.configure(state="disabled"),
                     self.rk_dna_lbl.configure(
-                        text=f"Снимок #{len(changes)} изменений",
+                        text=f"{t('snapshot')} #{len(changes)} {t('changes_lbl')}",
                         text_color="#00d4ff" if changes else "#2dc97e"),
                 ])
             else:
@@ -2379,7 +2375,7 @@ class RootkitGuard(ctk.CTk):
                     self.rk_dna_box.delete("1.0", "end"),
                     self.rk_dna_box.insert("end", "✓ Первый снимок системы создан"),
                     self.rk_dna_box.configure(state="disabled"),
-                    self.rk_dna_lbl.configure(text="Новый baseline", text_color="#00d4ff"),
+                    self.rk_dna_lbl.configure(text=t("new_baseline"), text_color="#00d4ff"),
                 ])
 
             dna_path.write_text(json.dumps(new_dna, ensure_ascii=False))
@@ -2400,15 +2396,15 @@ class RootkitGuard(ctk.CTk):
         except Exception as e:
             log_ui(f"[!] Ошибка: {e}")
             log.error(f"Rootkit error: {e}")
-            self.rk_status.configure(text="Ошибка!", text_color="red")
+            self.rk_status.configure(text=t("error_excl"), text_color="red")
 
         self.rk_output.configure(state="disabled")
 
     def _run_rootkit_api(self):
         if not self._api_available:
-            self.rk_status.configure(text="API недоступен", text_color="#e74c3c")
+            self.rk_status.configure(text=t("api_unavailable"), text_color="#e74c3c")
             return
-        self.rk_status.configure(text="API сканирование...", text_color="yellow")
+        self.rk_status.configure(text=t("api_scanning"), text_color="yellow")
         try:
             import requests
             resp = requests.post(f"{API_BASE}/rootkit/scan", timeout=30)
@@ -2417,11 +2413,11 @@ class RootkitGuard(ctk.CTk):
                 self.rk_score_lbl.configure(
                     text=f"{data.get('failed', 0)}/{data.get('total_checks', 0)}")
                 self.rk_status.configure(
-                    text=f"Готово · {data.get('threat_level', '—')}", text_color="#2dc97e")
+                    text=f"{t('done')} · {data.get('threat_level', '—')}", text_color="#2dc97e")
             else:
                 self.rk_status.configure(text=f"API {resp.status_code}", text_color="#e74c3c")
         except Exception as e:
-            self.rk_status.configure(text=f"Ошибка: {str(e)[:30]}", text_color="#e74c3c")
+            self.rk_status.configure(text=f"{t('error')}: {str(e)[:30]}", text_color="#e74c3c")
 
             
     def _show_rk_ai_panel(self, insight: dict, findings: list):
@@ -2435,7 +2431,7 @@ class RootkitGuard(ctk.CTk):
         # Если есть находки — показываем что делать
         if findings:
             ctk.CTkLabel(self.rk_ai_frame,
-                         text="🛡  Рекомендации по устранению",
+                         text=t("remediation"),
                          font=ctk.CTkFont(size=11, weight="bold"),
                          text_color="#e74c3c").pack(anchor="w", padx=12, pady=(8, 4))
             rec_map = {
@@ -2536,32 +2532,32 @@ Security Score: {insight['metrics'][0][1]}
 
     def _page_monitor(self):
         frame = ctk.CTkFrame(self.main, fg_color="transparent")
-        ctk.CTkLabel(frame, text="Мониторинг процессов",
+        ctk.CTkLabel(frame, text=t("process_monitoring"),
                      font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(10, 5))
 
         ctrl = ctk.CTkFrame(frame)
         ctrl.pack(fill="x", padx=20, pady=5)
-        self.mon_status = ctk.CTkLabel(ctrl, text="● Остановлен",
+        self.mon_status = ctk.CTkLabel(ctrl, text=t("stopped"),
                                         text_color="#e74c3c",
                                         font=ctk.CTkFont(size=13))
         self.mon_status.pack(side="left", padx=15, pady=10)
-        self.mon_count = ctk.CTkLabel(ctrl, text="Процессов: —",
+        self.mon_count = ctk.CTkLabel(ctrl, text=f"{t('processes')}: —",
                                        text_color="gray", font=ctk.CTkFont(size=13))
         self.mon_count.pack(side="left", padx=10)
-        self.mon_threats = ctk.CTkLabel(ctrl, text="Угроз: —",
+        self.mon_threats = ctk.CTkLabel(ctrl, text=f"{t('threats_lbl')}: —",
                                          text_color="gray", font=ctk.CTkFont(size=13))
         self.mon_threats.pack(side="left", padx=10)
-        ctk.CTkLabel(ctrl, text="Фильтр:").pack(side="left", padx=(20, 5))
+        ctk.CTkLabel(ctrl, text=t("filter")).pack(side="left", padx=(20, 5))
         self.mon_filter = ctk.CTkComboBox(
-            ctrl, values=["Все", "ВЫСОКАЯ", "СРЕДНЯЯ", "НИЗКАЯ"], width=120)
-        self.mon_filter.set("Все")
+            ctrl, values=[t("all_lbl"), "ВЫСОКАЯ", "СРЕДНЯЯ", "НИЗКАЯ"], width=120)
+        self.mon_filter.set(t("all_lbl"))
         self.mon_filter.pack(side="left", padx=5)
         self.mon_filter.configure(command=lambda v: self._refresh_monitor_table())
-        self.btn_start_mon = ctk.CTkButton(ctrl, text="▶ Запустить", width=120,
+        self.btn_start_mon = ctk.CTkButton(ctrl, text=t("run_btn"), width=120,
                                             fg_color="#2d6a4f",
                                             command=self._start_monitor)
         self.btn_start_mon.pack(side="right", padx=5, pady=8)
-        self.btn_stop_mon = ctk.CTkButton(ctrl, text="■ Стоп", width=110,
+        self.btn_stop_mon = ctk.CTkButton(ctrl, text=t("stop_sq"), width=110,
                                            fg_color="#7a1e1e", state="disabled",
                                            command=self._stop_monitor)
         self.btn_stop_mon.pack(side="right", padx=5)
@@ -2573,8 +2569,8 @@ Security Score: {insight['metrics'][0][1]}
         tf.pack(fill="both", expand=True, padx=20, pady=5)
         hdr = ctk.CTkFrame(tf, fg_color="#1a1a2e", corner_radius=0)
         hdr.pack(fill="x")
-        for col, w in [("PID",60),("Процесс",185),("CPU%",60),
-                        ("RAM MB",70),("Conn",50),("Score",75),("Угроза",95)]:
+        for col, w in [("PID",60),(t("process_col"),185),("CPU%",60),
+                        ("RAM MB",70),("Conn",50),("Score",75),(t("threat"),95)]:
             ctk.CTkLabel(hdr, text=col, width=w,
                          font=ctk.CTkFont(size=12, weight="bold"),
                          text_color="#85B7EB").pack(side="left", padx=4, pady=8)
@@ -2599,12 +2595,12 @@ Security Score: {insight['metrics'][0][1]}
         for w in self.mon_scroll.winfo_children():
             w.destroy()
         filt = self.mon_filter.get()
-        data = (self._monitor_data if filt == "Все"
+        data = (self._monitor_data if filt == t("all_lbl")
                 else [r for r in self._monitor_data if r["threat"] == filt])
         threats = sum(1 for r in self._monitor_data if r["threat"] != "НИЗКАЯ")
-        self.mon_count.configure(text=f"Процессов: {len(self._monitor_data)}")
+        self.mon_count.configure(text=f"{t('processes')}: {len(self._monitor_data)}")
         self.mon_threats.configure(
-            text=f"Угроз: {threats}",
+            text=f"{t('threats_lbl')}: {threats}",
             text_color="#e74c3c" if threats > 0 else "#2dc97e")
         c_map = {"ВЫСОКАЯ": "#e74c3c", "СРЕДНЯЯ": "#f39c12", "НИЗКАЯ": "#2dc97e"}
         for i, r in enumerate(data[:50]):
@@ -2628,13 +2624,13 @@ Security Score: {insight['metrics'][0][1]}
 
     def _start_monitor(self):
         self._monitor.start_realtime()
-        self.mon_status.configure(text="● Активен", text_color="#2dc97e")
+        self.mon_status.configure(text=t("active"), text_color="#2dc97e")
         self.btn_start_mon.configure(state="disabled")
         self.btn_stop_mon.configure(state="normal")
 
     def _stop_monitor(self):
         self._monitor.stop_realtime()
-        self.mon_status.configure(text="● Остановлен", text_color="#e74c3c")
+        self.mon_status.configure(text=t("stopped"), text_color="#e74c3c")
         self.btn_start_mon.configure(state="normal")
         self.btn_stop_mon.configure(state="disabled")
 
@@ -2774,7 +2770,7 @@ Security Score: {insight['metrics'][0][1]}
                             border_width=1, border_color="#1e293b", height=52)
         hdr.pack(fill="x", padx=16, pady=(8, 6))
         hdr.pack_propagate(False)
-        ctk.CTkLabel(hdr, text="📄  ОТЧЁТ",
+        ctk.CTkLabel(hdr, text=t("report_hdr"),
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color="#00d4ff").pack(side="left", padx=16, pady=14)
 
@@ -2784,11 +2780,11 @@ Security Score: {insight['metrics'][0][1]}
         info_frame.pack(fill="x", padx=16, pady=(0, 6))
         info_inner = ctk.CTkFrame(info_frame, fg_color="transparent")
         info_inner.pack(fill="x", padx=12, pady=10)
-        ctk.CTkLabel(info_inner, text="Последний скан:",
+        ctk.CTkLabel(info_inner, text=t("last_scan"),
                      font=ctk.CTkFont(size=10), text_color="#475569").pack(anchor="w")
         self.report_info_lbl = ctk.CTkLabel(
             info_inner,
-            text="Нет данных. Сначала выполни сканирование.",
+            text=t("no_data_scan_first"),
             text_color="#64748b", font=ctk.CTkFont(size=12))
         self.report_info_lbl.pack(anchor="w", pady=(2, 0))
 
@@ -2796,7 +2792,7 @@ Security Score: {insight['metrics'][0][1]}
         btn_frame = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=12,
                                   border_width=1, border_color="#1e293b")
         btn_frame.pack(fill="x", padx=16, pady=(0, 6))
-        ctk.CTkLabel(btn_frame, text="Экспорт:",
+        ctk.CTkLabel(btn_frame, text=t("export"),
                      font=ctk.CTkFont(size=10), text_color="#475569"
                      ).pack(anchor="w", padx=12, pady=(8, 4))
         btns = ctk.CTkFrame(btn_frame, fg_color="transparent")
@@ -2817,7 +2813,7 @@ Security Score: {insight['metrics'][0][1]}
                           target=self._gen_pdf_report, daemon=True).start()
                       ).pack(side="left", padx=(0, 6))
 
-        ctk.CTkButton(btns, text="🔄  Обновить",
+        ctk.CTkButton(btns, text=t("refresh"),
                       height=38, width=120, corner_radius=8,
                       fg_color="transparent", hover_color="#1e293b",
                       border_width=1, border_color="#2d3748",
@@ -2825,7 +2821,7 @@ Security Score: {insight['metrics'][0][1]}
                       command=self._update_report_info
                       ).pack(side="left", padx=(0, 6))
 
-        ctk.CTkButton(btns, text="🤖  AI Отчёт",
+        ctk.CTkButton(btns, text=t("ai_report"),
                       height=38, width=140, corner_radius=8,
                       fg_color="#0ea5e9", hover_color="#0284c7",
                       text_color="#000000",
@@ -2843,7 +2839,7 @@ Security Score: {insight['metrics'][0][1]}
         preview_frame = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=12,
                                       border_width=1, border_color="#1e293b")
         preview_frame.pack(fill="both", expand=True, padx=16, pady=(0, 10))
-        ctk.CTkLabel(preview_frame, text="Превью",
+        ctk.CTkLabel(preview_frame, text=t("preview"),
                      font=ctk.CTkFont(size=10), text_color="#475569"
                      ).pack(anchor="w", padx=12, pady=(8, 4))
         self.report_box = ctk.CTkTextbox(
@@ -2858,7 +2854,7 @@ Security Score: {insight['metrics'][0][1]}
             import anthropic
             self.after(0, lambda: [
                 self.report_status.configure(
-                    text="🤖 AI генерирует отчёт...", text_color="yellow"),
+                    text=t("ai_generating"), text_color="yellow"),
                 self.report_box.configure(state="normal"),
                 self.report_box.delete("1.0", "end"),
                 self.report_box.insert("end", "Генерирую профессиональный отчёт...\n"),
@@ -2867,7 +2863,7 @@ Security Score: {insight['metrics'][0][1]}
             s = self._last_scan
             if s["total"] == 0:
                 self.after(0, lambda: self.report_status.configure(
-                    text="Сначала выполни сканирование", text_color="#e74c3c"))
+                    text=t("scan_first"), text_color="#e74c3c"))
                 return
 
             api_key = cfg.get("anthropic", {}).get("api_key", "")
@@ -2930,24 +2926,24 @@ Security Score: {insight['metrics'][0][1]}
                 self.report_box.insert("end", r),
                 self.report_box.configure(state="disabled"),
                 self.report_status.configure(
-                    text=f"✓ AI отчёт сохранён: reports/ai_{out_name}",
+                    text=f"✓ {t('ai_saved')}: reports/ai_{out_name}",
                     text_color="#2dc97e"),
             ])
 
         except Exception as e:
             self.after(0, lambda err=str(e): [
                 self.report_status.configure(
-                    text=f"Ошибка AI: {err}", text_color="#e74c3c"),
+                    text=f"{t('ai_error')}: {err}", text_color="#e74c3c"),
             ])
 
     def _update_report_info(self):
         s = self._last_scan
         if s["total"] == 0:
             self.report_info_lbl.configure(
-                text="Последний скан: нет данных. Сначала выполни сканирование.")
+                text=f"{t('last_scan')} {t('no_data_scan_first').lower()}")
             return
         self.report_info_lbl.configure(
-            text=f"Файл: {s['filename']}   |   {s['timestamp']}   |   "
+            text=f"{t('file_lbl')}: {s['filename']}   |   {s['timestamp']}   |   "
                  f"Аномалий: {s['anomaly']:,}/{s['total']:,} ({s['pct']:.1f}%)   |   "
                  f"Угроза: {s['threat']}")
 
@@ -3003,13 +2999,13 @@ Security Score: {insight['metrics'][0][1]}
         self.report_box.configure(state="disabled")
         Path("reports").mkdir(exist_ok=True)
         out_path.write_text(rpt, encoding="utf-8")
-        self.report_status.configure(text=f"✓ Сохранено: reports/{out_name}")
+        self.report_status.configure(text=f"✓ {t('saved_to')}: reports/{out_name}")
 
     def _gen_pdf_report(self):
         self._update_report_info()
         try:
             from pdf_report import generate_pdf_report
-            self.report_status.configure(text="Генерация PDF...", text_color="yellow")
+            self.report_status.configure(text=t("generating_pdf"), text_color="yellow")
             s = self._last_scan
             out_name = self._unique_name("pdf")
             out_path = str(Path("reports") / out_name)
@@ -3040,14 +3036,14 @@ Security Score: {insight['metrics'][0][1]}
                 f"Открой файл из папки reports/")
             self.report_box.configure(state="disabled")
         except Exception as e:
-            self.report_status.configure(text=f"Ошибка PDF: {e}", text_color="red")
+            self.report_status.configure(text=f"{t('pdf_error')}: {e}", text_color="red")
             log.error(f"PDF error: {e}")
 
     # ── Настройки ────────────────────────────────────────────────
 
     def _page_settings(self):
         frame = ctk.CTkFrame(self.main, fg_color="transparent")
-        ctk.CTkLabel(frame, text="Настройки",
+        ctk.CTkLabel(frame, text=t("settings"),
                      font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(10, 5))
 
         scroll = ctk.CTkScrollableFrame(frame)
@@ -3111,9 +3107,9 @@ Security Score: {insight['metrics'][0][1]}
 
         btn_row = ctk.CTkFrame(frame, fg_color="transparent")
         btn_row.pack(pady=10)
-        ctk.CTkButton(btn_row, text="💾  Сохранить",
+        ctk.CTkButton(btn_row, text=t("save_btn"),
                       command=self._save_settings).pack(side="left", padx=10)
-        ctk.CTkButton(btn_row, text="⚡ Сгенерировать демо-модели",
+        ctk.CTkButton(btn_row, text=t("gen_demo_models"),
                       fg_color="#7a4520",
                       command=lambda: threading.Thread(
                           target=self._gen_demo_models_thread, daemon=True).start()
@@ -3135,9 +3131,9 @@ Security Score: {insight['metrics'][0][1]}
             p = Path(__file__).parent.parent / "config" / "config.yaml"
             with open(p, "w") as f:
                 yaml.dump(cfg, f, allow_unicode=True, default_flow_style=False)
-            self.settings_status.configure(text="✓ Сохранено в config.yaml")
+            self.settings_status.configure(text=t("saved_config"))
         except Exception as e:
-            self.settings_status.configure(text=f"Ошибка: {e}", text_color="red")
+            self.settings_status.configure(text=f"{t('error')}: {e}", text_color="red")
 
     # ── О системе ────────────────────────────────────────────────
 
@@ -3146,9 +3142,9 @@ Security Score: {insight['metrics'][0][1]}
         ctk.CTkLabel(frame, text="RootkitGuard",
                      font=ctk.CTkFont(size=28, weight="bold")).pack(pady=(40, 5))
         ctk.CTkLabel(frame,
-                     text="Система обнаружения rootkit-подобных аномалий на основе ML",
+                     text=t("about_subtitle"),
                      font=ctk.CTkFont(size=14), text_color="gray").pack()
-        ctk.CTkLabel(frame, text="МУИТ · Алматы · 2026",
+        ctk.CTkLabel(frame, text=t("about_uni"),
                      font=ctk.CTkFont(size=13), text_color="gray").pack(pady=(0, 30))
         for key, val in [
             ("Алгоритм",     "Random Forest + XGBoost + Isolation Forest"),
@@ -3167,296 +3163,6 @@ Security Score: {insight['metrics'][0][1]}
             ctk.CTkLabel(r, text=val, anchor="w").pack(side="left", pady=8)
         return frame
 
-
-
-    def _page_console(self):
-        frame = ctk.CTkFrame(self.main, fg_color="transparent")
-
-        # Заголовок
-        hdr = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=12,
-                           border_width=1, border_color="#1e293b", height=52)
-        hdr.pack(fill="x", padx=16, pady=(8, 6))
-        hdr.pack_propagate(False)
-        ctk.CTkLabel(hdr, text="💻  DEFENSE CONSOLE",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     text_color="#00ff88").pack(side="left", padx=16)
-        self.console_status = ctk.CTkLabel(hdr, text="● OFFLINE",
-                                            font=ctk.CTkFont(size=11),
-                                            text_color="#475569")
-        self.console_status.pack(side="right", padx=16)
-
-        # Карточки статуса
-        stat_row = ctk.CTkFrame(frame, fg_color="transparent")
-        stat_row.pack(fill="x", padx=16, pady=(0, 6))
-        for i in range(5):
-            stat_row.grid_columnconfigure(i, weight=1)
-
-        cards = [
-            ("Threat Score", "con_score_lbl",  "#00ff88",  "0"),
-            ("Угроза",       "con_threat_lbl", "#475569",  "—"),
-            ("Тип атаки",    "con_atype_lbl",  "#475569",  "—"),
-            ("Пакетов/сек",  "con_pps_lbl",    "#00d4ff",  "0"),
-            ("Цикл",         "con_cycle_lbl",  "#a855f7",  "0"),
-        ]
-        for i, (label, attr, color, default) in enumerate(cards):
-            c = ctk.CTkFrame(stat_row, fg_color="#0d1117", corner_radius=8,
-                             border_width=1, border_color="#1e293b")
-            c.grid(row=0, column=i, padx=3, sticky="ew")
-            ctk.CTkLabel(c, text=label, font=ctk.CTkFont(size=9),
-                         text_color="#475569").pack(pady=(6, 0))
-            lbl = ctk.CTkLabel(c, text=default,
-                               font=ctk.CTkFont(size=15, weight="bold"),
-                               text_color=color)
-            lbl.pack(pady=(0, 6))
-            setattr(self, attr, lbl)
-
-        # Терминал
-        term_frame = ctk.CTkFrame(frame, fg_color="#0a0a0a", corner_radius=10,
-                                   border_width=1, border_color="#1e293b")
-        term_frame.pack(fill="both", expand=True, padx=16, pady=(0, 6))
-
-        # Заголовок терминала
-        term_hdr = ctk.CTkFrame(term_frame, fg_color="#0d1117",
-                                 corner_radius=0, height=28)
-        term_hdr.pack(fill="x")
-        term_hdr.pack_propagate(False)
-        ctk.CTkLabel(term_hdr, text="  root@rootkitguard:~#",
-                     font=ctk.CTkFont(family="monospace", size=10),
-                     text_color="#00ff88").pack(side="left", padx=8)
-        self.con_packets_lbl = ctk.CTkLabel(term_hdr, text="",
-                                             font=ctk.CTkFont(family="monospace", size=10),
-                                             text_color="#475569")
-        self.con_packets_lbl.pack(side="right", padx=12)
-
-        self.console_box = ctk.CTkTextbox(
-            term_frame,
-            font=ctk.CTkFont(family="monospace", size=11),
-            fg_color="#0a0a0a",
-            text_color="#00ff88",
-            wrap="word")
-        self.console_box.pack(fill="both", expand=True, padx=2, pady=2)
-        self.console_box.insert("end", "[*] RootkitGuard Defense Console v2.1\n")
-        self.console_box.insert("end", "[*] ML Models: RF | XGB | ISO | RootkitGuard\n")
-        self.console_box.insert("end", "[*] Interface: enp0s3\n")
-        self.console_box.insert("end", "[*] Status: WAITING\n")
-        self.console_box.insert("end", "-" * 55 + "\n\n")
-        self.console_box.configure(state="disabled")
-
-        # Нижняя панель — кнопки + переключатель модели
-        bottom = ctk.CTkFrame(frame, fg_color="transparent")
-        bottom.pack(fill="x", padx=16, pady=(0, 10))
-
-        self.console_start_btn = ctk.CTkButton(
-            bottom, text="▶  Запустить",
-            height=34, width=140, corner_radius=8,
-            fg_color="#1a3a1a", hover_color="#2d6a4f",
-            text_color="#00ff88",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            command=self._toggle_console_monitor)
-        self.console_start_btn.pack(side="left", padx=(0, 6))
-
-        ctk.CTkButton(bottom, text="🗑  Очистить",
-                      height=34, width=110, corner_radius=8,
-                      fg_color="#1e293b", hover_color="#2d3748",
-                      font=ctk.CTkFont(size=11),
-                      command=self._console_clear).pack(side="left", padx=(0, 6))
-
-        ctk.CTkButton(bottom, text="💾  Сохранить лог",
-                      height=34, width=130, corner_radius=8,
-                      fg_color="#1e293b", hover_color="#2d3748",
-                      font=ctk.CTkFont(size=11),
-                      command=self._console_save_log).pack(side="left", padx=(0, 6))
-
-        # Переключатель модели
-        ctk.CTkLabel(bottom, text="Модель:",
-                     font=ctk.CTkFont(size=10),
-                     text_color="#475569").pack(side="left", padx=(12, 4))
-        self.console_model_sel = ctk.CTkSegmentedButton(
-            bottom,
-            values=["RF", "XGB", "ISO", "RKG"],
-            font=ctk.CTkFont(size=10),
-            fg_color="#1e293b",
-            selected_color="#00ff88",
-            selected_hover_color="#2dc97e",
-            unselected_color="#1e293b",
-            text_color="#ffffff",
-            command=self._on_console_model_select)
-        self.console_model_sel.set("RF")
-        self.console_model_sel.pack(side="left")
-
-        self._console_running = False
-        return frame
-
-    def _console_log(self, msg: str, color_tag: str = "normal"):
-        def _write():
-            self.console_box.configure(state="normal")
-            from datetime import datetime
-            ts = datetime.now().strftime("%H:%M:%S")
-            self.console_box.insert("end", f"[{ts}] {msg}\n")
-            self.console_box.see("end")
-            self.console_box.configure(state="disabled")
-        self.after(0, _write)
-
-    def _console_clear(self):
-        self.console_box.configure(state="normal")
-        self.console_box.delete("1.0", "end")
-        self.console_box.insert("end", "[*] Лог очищен\n")
-        self.console_box.configure(state="disabled")
-
-    def _console_save_log(self):
-        from pathlib import Path
-        from datetime import datetime
-        Path("reports").mkdir(exist_ok=True)
-        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        path = f"reports/console_log_{ts}.txt"
-        content = self.console_box.get("1.0", "end")
-        Path(path).write_text(content, encoding="utf-8")
-        self._console_log(f"[✓] Лог сохранён: {path}")
-
-    def _on_console_model_select(self, value):
-        model_map = {
-            "RF":  ("rf",           "Random Forest"),
-            "XGB": ("xgb",          "XGBoost"),
-            "ISO": ("iso",          "Isolation Forest"),
-            "RKG": ("rootkitguard", "RootkitGuard ML"),
-        }
-        key, name = model_map.get(value, ("rf", "Random Forest"))
-        self._console_log(f"[MODEL] Переключено на: {name}")
-        if hasattr(self, "_console_threat_monitor"):
-            self._console_threat_monitor.set_model(key)
-
-    def _toggle_console_monitor(self):
-        if self._console_running:
-            self._console_running = False
-            if hasattr(self, "_console_threat_monitor"):
-                self._console_threat_monitor.stop()
-            self.console_start_btn.configure(
-                text="▶  Запустить", fg_color="#1a3a1a", text_color="#00ff88")
-            self.console_status.configure(text="● OFFLINE", text_color="#475569")
-            self._console_log("[*] Мониторинг остановлен")
-        else:
-            self._console_running = True
-            from threat_monitor import ThreatMonitor
-            self._console_threat_monitor = ThreatMonitor(
-                interface="enp0s3", interval=2)
-            self._console_threat_monitor.add_callback(self._on_console_event)
-            self._console_threat_monitor.start()
-            self.console_start_btn.configure(
-                text="⏹  Остановить", fg_color="#7a1e1e", text_color="white")
-            self.console_status.configure(text="● ONLINE", text_color="#00ff88")
-            self._console_log("[*] Запуск мониторинга...")
-            self._console_log("[*] Интерфейс: enp0s3 | Интервал: 2 сек")
-            self._console_log("[*] Модели: RF + XGB + ISO + RootkitGuard ML")
-            self._console_log("-" * 50)
-
-    def _on_console_event(self, event: dict):
-        etype = event.get("type")
-        color_map = {"ВЫСОКАЯ": "#e74c3c", "СРЕДНЯЯ": "#f39c12", "НИЗКАЯ": "#00ff88"}
-
-        if etype == "cycle_start":
-            cycle = event.get("cycle", 0)
-            self.after(0, lambda c=cycle: self.con_cycle_lbl.configure(text=str(c)))
-
-        elif etype == "result":
-            data   = event["data"]
-            threat = data["threat"]
-            score  = data["threat_score"]
-            atype  = data.get("attack_type", "—")
-            total  = data.get("total", 0)
-            anom   = data.get("anomalies", 0)
-            pct    = data.get("pct", 0.0)
-            ports  = data.get("top_ports", [])
-            cycle  = data.get("cycle", 0)
-            ts     = data["timestamp"][-8:]
-            color  = color_map.get(threat, "#00ff88")
-
-            # Вычисляем pps
-            pps = total * (1000 // 2) if total > 0 else 0
-
-            def update(d=data, t=threat, s=score, at=atype, c=color, p=pct, an=anom, tot=total, po=ports, pp=pps):
-                # Карточки
-                self.con_score_lbl.configure(text=str(s), text_color=c)
-                self.con_threat_lbl.configure(text=t, text_color=c)
-                self.con_atype_lbl.configure(text=at if t != "НИЗКАЯ" else "—", text_color=c)
-                self.con_pps_lbl.configure(text=f"{pp:,}")
-                self.con_packets_lbl.configure(
-                    text=f"flows: {tot} | anomalies: {an} ({p:.1f}%)")
-
-                # Терминал лог
-                self.console_box.configure(state="normal")
-                ts_now = __import__("datetime").datetime.now().strftime("%H:%M:%S")
-
-                if t == "ВЫСОКАЯ":
-                    self.console_box.insert("end",
-                        f"[{ts_now}] ⚠  ВЫСОКАЯ УГРОЗА | Score:{s} | {at}\n")
-                    self.console_box.insert("end",
-                        f"         Аномалий: {an}/{tot} ({p:.1f}%)\n")
-                    if po:
-                        self.console_box.insert("end",
-                            f"         Атакованные порты: {po[:3]}\n")
-                    self.console_box.insert("end",
-                        f"         iptables -A INPUT -p tcp --dport {po[0] if po else 445} -j DROP\n")
-                    self.console_box.insert("end", "-" * 50 + "\n")
-
-                elif t == "СРЕДНЯЯ":
-                    self.console_box.insert("end",
-                        f"[{ts_now}] △  СРЕДНЯЯ | Score:{s} | {at} | {an}/{tot} аномалий\n")
-                else:
-                    self.console_box.insert("end",
-                        f"[{ts_now}] ✓  НИЗКАЯ | Score:{s} | flows:{tot} | норма\n")
-
-                self.console_box.see("end")
-                self.console_box.configure(state="disabled")
-
-                # Автодообучение
-                if t in ("ВЫСОКАЯ", "СРЕДНЯЯ"):
-                    import threading
-                    def auto_learn(d=data):
-                        try:
-                            from online_learner import OnlineLearner
-                            import pandas as pd, numpy as np
-                            learner = OnlineLearner()
-                            cols = list(self.rf.feature_names_in_)
-                            n = min(d["anomalies"], 30)
-                            if n > 0:
-                                samples = pd.DataFrame(
-                                    np.random.randn(n, len(cols)) * 3 + 5, columns=cols)
-                                samples["Dst Port"] = float(d["top_ports"][0] if d["top_ports"] else 445)
-                                added = learner.add_attack_samples(samples, label=1)
-                                self.after(0, lambda a=added: self.learn_lbl.configure(
-                                    text=f"🧠 +{a}", text_color="#a855f7"))
-                                if learner.should_retrain():
-                                    self.after(0, lambda: self.learn_lbl.configure(
-                                        text="🧠 Обучение...", text_color="#f59e0b"))
-                                    result = learner.retrain()
-                                    if result.get("status") == "success":
-                                        self._load_models()
-                                        self.after(0, lambda r=result: [
-                                            self.learn_lbl.configure(
-                                                text=f"🧠 v{r['version']} ✓",
-                                                text_color="#2dc97e"),
-                                            self._console_log(
-                                                f"[ML] Модель обновлена v{r['version']} (+{r['new_trees']} деревьев)")
-                                        ])
-                        except Exception as e:
-                            self.after(0, lambda err=str(e):
-                                self.learn_lbl.configure(text="🧠 !", text_color="#e74c3c"))
-                    threading.Thread(target=auto_learn, daemon=True).start()
-
-                # Auto Defense
-                if t == "ВЫСОКАЯ" and not getattr(self, "_console_defense_shown", False):
-                    self._console_defense_shown = True
-                    self.after(0, lambda d=data: self._show_defense_modal(d))
-                elif t != "ВЫСОКАЯ":
-                    self._console_defense_shown = False
-
-            self.after(0, update)
-
-        elif etype == "no_traffic":
-            self._console_log("[~] Нет трафика — ожидание...")
-
-        elif etype == "error":
-            self._console_log(f"[!] Ошибка: {event.get('msg','')[:50]}")
 
 
     def _page_rkdefense(self):
@@ -3528,7 +3234,7 @@ Security Score: {insight['metrics'][0][1]}
 
         # Вердикт-бейдж
         self.rkd_verdict = ctk.CTkLabel(
-            score_panel, text="ОЖИДАНИЕ",
+            score_panel, text=t("waiting_caps"),
             font=ctk.CTkFont(family=MONO, size=12, weight="bold"),
             fg_color=C_PANEL_HI, corner_radius=6,
             text_color=C_DIM, height=28)
@@ -3542,13 +3248,13 @@ Security Score: {insight['metrics'][0][1]}
         self.rkd_progress.set(0)
 
         self.rkd_status = ctk.CTkLabel(
-            score_panel, text="готов к сканированию",
+            score_panel, text=t("ready_to_scan_lc"),
             font=ctk.CTkFont(family=MONO, size=9),
             text_color=C_MONO)
         self.rkd_status.pack(anchor="w", padx=16, pady=(0, 8))
 
         self.rkd_baseline_lbl = ctk.CTkLabel(
-            score_panel, text="\u26ac baseline: нет",
+            score_panel, text=t("baseline_none"),
             font=ctk.CTkFont(family=MONO, size=9),
             text_color=C_DIM)
         self.rkd_baseline_lbl.pack(anchor="w", padx=16, pady=(0, 14))
@@ -3600,7 +3306,7 @@ Security Score: {insight['metrics'][0][1]}
         actions.pack_propagate(False)
 
         # Сканировать (главная кнопка)
-        ctk.CTkButton(actions, text="\u25b6  СКАНИРОВАТЬ",
+        ctk.CTkButton(actions, text=t("scan_caps"),
                       width=150, height=34, corner_radius=8,
                       fg_color=C_RED, hover_color="#d62f40",
                       text_color="#ffffff",
@@ -3622,7 +3328,7 @@ Security Score: {insight['metrics'][0][1]}
 
         # Копировать всё (перенесено сюда!)
         self._copy_btn = ctk.CTkButton(
-            actions, text="\U0001f4cb КОПИРОВАТЬ ВСЁ",
+            actions, text=t("copy_all_caps"),
             width=160, height=34, corner_radius=8,
             fg_color=C_PANEL_HI, hover_color="#16233a",
             border_width=1, border_color=C_CYAN,
@@ -3641,7 +3347,7 @@ Security Score: {insight['metrics'][0][1]}
         self.rkd_findings_frame = ctk.CTkScrollableFrame(
             frame, fg_color=C_BG, corner_radius=10,
             border_width=1, border_color=C_BORDER,
-            label_text="  INCIDENT LOG // обнаруженные угрозы",
+            label_text=t("incident_log"),
             label_font=ctk.CTkFont(family=MONO, size=10, weight="bold"),
             label_fg_color=C_PANEL)
         self.rkd_findings_frame.pack(fill="both", expand=True, padx=14, pady=(4, 10))
@@ -3652,7 +3358,7 @@ Security Score: {insight['metrics'][0][1]}
         ctk.CTkLabel(empty, text="\U0001f6e1",
                      font=ctk.CTkFont(size=36)).pack()
         ctk.CTkLabel(empty,
-                     text="нажмите СКАНИРОВАТЬ для проверки системы",
+                     text=t("press_scan"),
                      font=ctk.CTkFont(family=MONO, size=11),
                      text_color=C_DIM).pack(pady=(8, 0))
 
@@ -3673,21 +3379,21 @@ Security Score: {insight['metrics'][0][1]}
         try:
             from rootkit_detector import RootkitDetector
             self.after(0, lambda: self.rkd_status.configure(
-                text="создаю baseline...", text_color=P["amber"]))
+                text=t("creating_baseline"), text_color=P["amber"]))
             det = RootkitDetector()
             bl = det.create_baseline()
             n_bins = len(bl.get("binaries", {}))
             n_mods = len(bl.get("modules", []))
             self.app_log(f"BASELINE создан: {n_bins} бинарников, {n_mods} модулей")
             self.after(0, lambda: [
-                self.rkd_status.configure(text="baseline создан", text_color=P["cyan"]),
+                self.rkd_status.configure(text=t("baseline_created"), text_color=P["cyan"]),
                 self.rkd_baseline_lbl.configure(
                     text=f"\u2713 baseline: {n_bins} bins / {n_mods} mods",
                     text_color=P["cyan"]),
             ])
         except Exception as e:
             self.after(0, lambda err=str(e): self.rkd_status.configure(
-                text=f"ошибка: {err[:40]}", text_color=P["red"]))
+                text=f"{t('error_lc')}: {err[:40]}", text_color=P["red"]))
 
     def _run_rkdefense_scan(self):
         """Запускает rootkit сканирование (SOC дизайн)."""
@@ -3696,9 +3402,9 @@ Security Score: {insight['metrics'][0][1]}
 
         # Сброс UI
         self.after(0, lambda: [
-            self.rkd_status.configure(text="сканирование...", text_color=P["amber"]),
+            self.rkd_status.configure(text=t("scanning_lc"), text_color=P["amber"]),
             self.rkd_score_lbl.configure(text="..", text_color=P["amber"]),
-            self.rkd_verdict.configure(text="СКАН В ПРОЦЕССЕ", text_color=P["amber"]),
+            self.rkd_verdict.configure(text=t("scan_in_progress"), text_color=P["amber"]),
             self.rkd_engine_lbl.configure(text="\u25cf SCANNING", text_color=P["amber"]),
             self.rkd_progress.set(0),
             self.rkd_progress.configure(progress_color=P["cyan"]),
@@ -3717,7 +3423,7 @@ Security Score: {insight['metrics'][0][1]}
 
             if not det.has_baseline():
                 self.after(0, lambda: self.rkd_baseline_lbl.configure(
-                    text="\u26a0 baseline отсутствует", text_color=P["amber"]))
+                    text=t("baseline_missing"), text_color=P["amber"]))
 
             methods = [
                 (0, det.detect_hidden_processes),
@@ -3766,7 +3472,7 @@ Security Score: {insight['metrics'][0][1]}
                 text=f"\u25cf {t}", text_color=c))
             self.after(0, lambda c=tcolor: self.rkd_progress.configure(progress_color=c))
             self.after(0, lambda: self.rkd_status.configure(
-                text="скан завершён", text_color=P["mono"]))
+                text=t("scan_done_lc"), text_color=P["mono"]))
             self.after(0, lambda c=tcolor: self.rkd_engine_lbl.configure(
                 text="\u25cf SCAN COMPLETE", text_color=c))
 
@@ -3777,7 +3483,7 @@ Security Score: {insight['metrics'][0][1]}
 
         except Exception as e:
             self.after(0, lambda err=str(e): self.rkd_status.configure(
-                text=f"ошибка: {err[:40]}", text_color=P["red"]))
+                text=f"{t('error_lc')}: {err[:40]}", text_color=P["red"]))
 
     def _render_rkd_findings(self, findings: list, threat: str):
         """Рисует находки как forensic-инциденты."""
@@ -3815,10 +3521,10 @@ Security Score: {insight['metrics'][0][1]}
             ctk.CTkLabel(inner, text="\u2713",
                          font=ctk.CTkFont(size=40),
                          text_color=P["cyan"]).pack()
-            ctk.CTkLabel(inner, text="СИСТЕМА ЧИСТА",
+            ctk.CTkLabel(inner, text=t("system_clean"),
                          font=ctk.CTkFont(family=MONO, size=14, weight="bold"),
                          text_color=P["cyan"]).pack(pady=(8, 2))
-            ctk.CTkLabel(inner, text="rootkit не обнаружен ни одним из 5 детекторов",
+            ctk.CTkLabel(inner, text=t("no_rootkit_5"),
                          font=ctk.CTkFont(family=MONO, size=10),
                          text_color=P["dim"]).pack()
             return
@@ -3934,7 +3640,7 @@ Security Score: {insight['metrics'][0][1]}
         ctk.CTkLabel(hdr, text="\U0001f916  AI INCIDENT RESPONSE",
                      font=ctk.CTkFont(family=MONO, size=11, weight="bold"),
                      text_color=P["cyan"]).pack(side="left")
-        ctk.CTkLabel(hdr, text="// Claude советует план реагирования",
+        ctk.CTkLabel(hdr, text=t("claude_plan"),
                      font=ctk.CTkFont(family=MONO, size=9),
                      text_color=P["dim"]).pack(side="left", padx=8)
 
@@ -3943,7 +3649,7 @@ Security Score: {insight['metrics'][0][1]}
         btns.pack(fill="x", padx=12, pady=(0, 6))
 
         ask_btn = ctk.CTkButton(
-            btns, text="\U0001f9e0  Получить план от AI",
+            btns, text=t("get_ai_plan"),
             height=34, corner_radius=8,
             fg_color=P["cyan"], hover_color="#00b8e0",
             text_color="#06090f",
@@ -3953,7 +3659,7 @@ Security Score: {insight['metrics'][0][1]}
         ask_btn.pack(side="left", padx=(0, 6))
 
         self._rkd_copy_cmd_btn = ctk.CTkButton(
-            btns, text="\U0001f4cb Копировать команды",
+            btns, text=t("copy_commands"),
             height=34, corner_radius=8,
             fg_color=P["panel_hi"], hover_color="#16233a",
             border_width=1, border_color=P["border"],
@@ -3963,7 +3669,7 @@ Security Score: {insight['metrics'][0][1]}
         self._rkd_copy_cmd_btn.pack(side="left", padx=(0, 6))
 
         verify_btn = ctk.CTkButton(
-            btns, text="\U0001f504 Проверить устранение",
+            btns, text=t("check_fix"),
             height=34, corner_radius=8,
             fg_color="#1a3a1a", hover_color="#2d6a4f",
             text_color="#5ef0a0",
@@ -4082,9 +3788,9 @@ $ команда1
             self.clipboard_clear()
             self.clipboard_append(text)
             self.update()
-            self._rkd_copy_cmd_btn.configure(text="\u2713 Скопировано!")
+            self._rkd_copy_cmd_btn.configure(text=t("copied"))
             self.after(2000, lambda: self._rkd_copy_cmd_btn.configure(
-                text="\U0001f4cb Копировать команды"))
+                text=t("copy_commands")))
             self.app_log(f"Скопировано {len(self._rkd_extracted_cmds)} команд реагирования")
         except Exception:
             pass
@@ -4099,7 +3805,7 @@ $ команда1
 
         self.after(0, lambda: [
             self._rkd_verify_lbl.configure(
-                text="\U0001f504 повторное сканирование...", text_color=P["amber"]),
+                text=t("rescanning"), text_color=P["amber"]),
         ])
 
         try:
@@ -4128,7 +3834,7 @@ $ команда1
 
         except Exception as e:
             self.after(0, lambda err=str(e): self._rkd_verify_lbl.configure(
-                text=f"[!] Ошибка проверки: {err[:50]}", text_color=P["red"]))
+                text=f"{t('check_error')}: {err[:50]}", text_color=P["red"]))
 
     def _rkdefense_learn(self, findings: list):
         """Самообучение: модель учится на rootkit находках."""
@@ -4148,7 +3854,7 @@ $ команда1
                         text=f"\U0001f9e0 +{a}", text_color="#a855f7"))
                     if learner.should_retrain():
                         self.after(0, lambda: self.learn_lbl.configure(
-                            text="\U0001f9e0 Обучение...", text_color="#f59e0b"))
+                            text=t("training"), text_color="#f59e0b"))
                         result = learner.retrain()
                         if result.get("status") == "success":
                             self._load_models()

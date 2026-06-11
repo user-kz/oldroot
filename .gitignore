@@ -1,10 +1,20 @@
+# Конфиг с локальными настройками/ключами (шаблон: config/config.example.yaml)
 config/config.yaml
-config/config.yaml
-config/config.yaml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Данные live-захвата
 data/live_traffic.csv
 data/live_*.csv
 data/live_*.pcap
 data/attack.pcap
 
-__pycache__/
-*.pyc
+# Логи и артефакты
+logs/*.log
+src/logs/*.log
+reports/*.pdf
+data/rootkitguard.db

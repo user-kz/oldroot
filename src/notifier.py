@@ -1,7 +1,9 @@
 """
-notifier.py — десктопные уведомления Ubuntu через notify-send (libnotify).
+notifier.py — десктопные уведомления (кроссплатформенно).
+Linux: notify-send (libnotify) · macOS: osascript · Windows: PowerShell balloon.
 Вызывается при СРЕДНЕЙ / ВЫСОКОЙ угрозе автоматически.
 """
+import sys
 import subprocess
 from pathlib import Path
 
@@ -16,25 +18,60 @@ log = get_logger("notifier")
 ICON_PATH = str(Path(__file__).parent.parent / "assets" / "icon.png")
 
 
+def _notify_linux(title: str, body: str, urgency: str) -> bool:
+    icon = ICON_PATH if Path(ICON_PATH).exists() else "dialog-warning"
+    subprocess.run(
+        ["notify-send", "--urgency", urgency, "--icon", icon, title, body],
+        timeout=5, check=True, capture_output=True
+    )
+    return True
+
+
+def _notify_macos(title: str, body: str) -> bool:
+    t = title.replace('"', "'")
+    b = body.replace('"', "'")
+    subprocess.run(
+        ["osascript", "-e", f'display notification "{b}" with title "{t}"'],
+        timeout=5, check=True, capture_output=True
+    )
+    return True
+
+
+def _notify_windows(title: str, body: str) -> bool:
+    t = title.replace("'", "''")
+    b = body.replace("'", "''")
+    ps = (
+        "[reflection.assembly]::LoadWithPartialName('System.Windows.Forms')|Out-Null;"
+        "[reflection.assembly]::LoadWithPartialName('System.Drawing')|Out-Null;"
+        "$n=New-Object System.Windows.Forms.NotifyIcon;"
+        "$n.Icon=[System.Drawing.SystemIcons]::Warning;"
+        "$n.Visible=$true;"
+        f"$n.ShowBalloonTip(5000,'{t}','{b}','Warning');"
+        "Start-Sleep -Seconds 6;$n.Dispose()"
+    )
+    subprocess.Popen(
+        ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    )
+    return True
+
+
 def notify(title: str, body: str, urgency: str = "normal") -> bool:
-    """
-    Отправить уведомление через notify-send.
-    urgency: "low" | "normal" | "critical"
-    Возвращает True если успешно.
-    """
+    """Отправить десктопное уведомление. Возвращает True если успешно."""
     try:
-        icon = ICON_PATH if Path(ICON_PATH).exists() else "dialog-warning"
-        subprocess.run(
-            ["notify-send", "--urgency", urgency, "--icon", icon, title, body],
-            timeout=5, check=True, capture_output=True
-        )
-        log.info(f"Уведомление отправлено: {title}")
-        return True
+        if sys.platform.startswith("linux"):
+            return _notify_linux(title, body, urgency)
+        elif sys.platform == "darwin":
+            return _notify_macos(title, body)
+        elif sys.platform == "win32":
+            return _notify_windows(title, body)
+        log.debug(f"Уведомления не поддерживаются на {sys.platform}")
+        return False
     except FileNotFoundError:
-        log.debug("notify-send не найден (установи libnotify-bin)")
+        log.debug("Утилита уведомлений не найдена (Linux: sudo apt install libnotify-bin)")
         return False
     except subprocess.CalledProcessError as e:
-        log.debug(f"notify-send вернул ошибку: {e}")
+        log.debug(f"Ошибка утилиты уведомлений: {e}")
         return False
     except Exception as e:
         log.debug(f"Ошибка уведомления: {e}")

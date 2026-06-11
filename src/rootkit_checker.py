@@ -11,6 +11,7 @@ rootkit_checker.py — Linux-специфичные проверки на rootki
 """
 import os
 import re
+import sys
 import subprocess
 import hashlib
 from pathlib import Path
@@ -415,6 +416,19 @@ class RootkitChecker:
     def run_all(self) -> RootkitScanResult:
         """Запустить все проверки и вернуть сводный результат."""
         result = RootkitScanResult()
+
+        # Rootkit-проверки опираются на /proc, lsmod и т.д. — только Linux.
+        if not sys.platform.startswith("linux"):
+            log.warning(f"Rootkit-проверки недоступны на {sys.platform}")
+            result.findings.append(RootkitFinding(
+                category="platform",
+                severity="НИЗКАЯ",
+                description="Rootkit-проверки доступны только на Linux",
+                detail=(f"Текущая ОС: {sys.platform}. Скрытые процессы, модули ядра, "
+                        "LD_PRELOAD и т.д. проверяются через /proc — запусти на Ubuntu."),
+            ))
+            return result
+
         checks = [
             ("Скрытые процессы",     self.check_hidden_processes),
             ("Модули ядра",          self.check_kernel_modules),

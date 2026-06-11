@@ -687,3 +687,14 @@ TRANSLATIONS["kz"].update({"set_lite": "Жеңіл режим (әлсіз ДК �
 TRANSLATIONS["ru"].update({"syslog_btn":"\U0001f4e1 Журнал системы","syslog_title":"Системный журнал — LIVE"})
 TRANSLATIONS["en"].update({"syslog_btn":"\U0001f4e1 System log","syslog_title":"System log — LIVE"})
 TRANSLATIONS["kz"].update({"syslog_btn":"\U0001f4e1 Жүйе журналы","syslog_title":"Жүйе журналы — LIVE"})
+
+TRANSLATIONS["ru"].update({"report_btn":"📄  Report (Word / PDF / Excel)"})
+TRANSLATIONS["en"].update({"report_btn":"📄  Report (Word / PDF / Excel)"})
+TRANSLATIONS["kz"].update({"report_btn":"📄  Report (Word / PDF / Excel)"})
+
+TRANSLATIONS["ru"].update({"defense_title":"🛡 Auto Defense — реагирование",
+  "def_isolate":"⛔ Изоляция","def_quarantine":"📦 Карантин","def_forensics":"🔬 Форензика"})
+TRANSLATIONS["en"].update({"defense_title":"🛡 Auto Defense — response",
+  "def_isolate":"⛔ Isolate","def_quarantine":"📦 Quarantine","def_forensics":"🔬 Forensics"})
+TRANSLATIONS["kz"].update({"defense_title":"🛡 Auto Defense — әрекет",
+  "def_isolate":"⛔ Оқшаулау","def_quarantine":"📦 Карантин","def_forensics":"🔬 Форензика"})

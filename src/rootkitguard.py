@@ -120,6 +120,7 @@ class RootkitGuard(ctk.CTk):
         self._api_available = False
         self._api_proc      = None
         self._build_ui()
+        self._setup_scroll_zoom()
         threading.Thread(target=self._check_api, daemon=True).start()
         threading.Thread(target=self._auto_startup_scan, daemon=True).start()
 
@@ -284,6 +285,71 @@ class RootkitGuard(ctk.CTk):
                     text=t("copy_all")))
         except Exception as e:
             print(f"Ошибка копирования: {e}")
+
+    def _setup_scroll_zoom(self):
+        """#15 колесо мыши прокручивает страницу везде; #16 зум интерфейса."""
+        self._ui_scale = 1.0
+
+        # ── Скролл колесом по всей области (CTk не делает это для дочерних) ──
+        def _scroll(direction):
+            try:
+                canvas = self.main._parent_canvas
+                canvas.yview_scroll(direction, "units")
+            except Exception:
+                pass
+
+        def on_wheel(event):
+            if event.state & 0x0004:      # Ctrl зажат → это зум, не скролл
+                return
+            if getattr(event, "delta", 0):           # Windows/macOS
+                _scroll(-1 if event.delta > 0 else 1)
+            elif getattr(event, "num", None) == 4:   # Linux вверх
+                _scroll(-1)
+            elif getattr(event, "num", None) == 5:   # Linux вниз
+                _scroll(1)
+
+        self.bind_all("<MouseWheel>", on_wheel, add="+")
+        self.bind_all("<Button-4>", on_wheel, add="+")
+        self.bind_all("<Button-5>", on_wheel, add="+")
+
+        # ── Зум: Ctrl +/-/0 и Ctrl+колесо ──
+        def on_ctrl_wheel(event):
+            if getattr(event, "delta", 0) > 0 or getattr(event, "num", None) == 4:
+                self._zoom(+0.1)
+            else:
+                self._zoom(-0.1)
+            return "break"
+        self.bind_all("<Control-MouseWheel>", on_ctrl_wheel, add="+")
+        self.bind_all("<Control-Button-4>", lambda e: self._zoom(+0.1), add="+")
+        self.bind_all("<Control-Button-5>", lambda e: self._zoom(-0.1), add="+")
+        self.bind_all("<Control-plus>",  lambda e: self._zoom(+0.1), add="+")
+        self.bind_all("<Control-equal>", lambda e: self._zoom(+0.1), add="+")
+        self.bind_all("<Control-minus>", lambda e: self._zoom(-0.1), add="+")
+        self.bind_all("<Control-Key-0>", lambda e: self._zoom(reset=True), add="+")
+
+        # ── Компактный зум-контрол внизу нав-панели ──
+        zoom_bar = ctk.CTkFrame(self.nav, fg_color="transparent")
+        zoom_bar.pack(side="bottom", fill="x", padx=8, pady=(0, 6))
+        ctk.CTkButton(zoom_bar, text="\u2212", width=30, height=26,
+                      fg_color="#1e293b", hover_color="#2d3748",
+                      command=lambda: self._zoom(-0.1)).pack(side="left")
+        self._zoom_lbl = ctk.CTkButton(zoom_bar, text="100%", width=54, height=26,
+                      fg_color="transparent", hover_color="#1e293b",
+                      command=lambda: self._zoom(reset=True))
+        self._zoom_lbl.pack(side="left", padx=2)
+        ctk.CTkButton(zoom_bar, text="+", width=30, height=26,
+                      fg_color="#1e293b", hover_color="#2d3748",
+                      command=lambda: self._zoom(+0.1)).pack(side="left")
+
+    def _zoom(self, delta=0.0, reset=False):
+        """Масштабирование всего интерфейса (для демонстрации на большом экране)."""
+        self._ui_scale = 1.0 if reset else min(2.2, max(0.7, self._ui_scale + delta))
+        try:
+            ctk.set_widget_scaling(self._ui_scale)
+            if hasattr(self, "_zoom_lbl"):
+                self._zoom_lbl.configure(text=f"{int(self._ui_scale * 100)}%")
+        except Exception:
+            pass
 
     def _build_ui(self):
         self._nav_expanded = True
@@ -1078,12 +1144,6 @@ class RootkitGuard(ctk.CTk):
                         text=f"{d['anomalies']:,}\n({d['pct']:.1f}%)")
                     self.threat_lbl.configure(text=t, text_color=c)
 
-                # Auto Defense при ВЫСОКОЙ
-                if t == "ВЫСОКАЯ" and not getattr(self, '_defense_shown', False):
-                    self._defense_shown = True
-                    self._show_defense_modal(d)
-                elif t != "ВЫСОКАЯ":
-                    self._defense_shown = False
                 
                 # Автодообучение в фоне
                 if t in ("ВЫСОКАЯ", "СРЕДНЯЯ"):
@@ -1340,28 +1400,13 @@ class RootkitGuard(ctk.CTk):
         self.scan_history_box.insert("end", t("no_scans") + "\n")
         self.scan_history_box.configure(state="disabled")
 
-        # ── Экспорт отчёта: Word / PDF / Excel ──
-        exp = ctk.CTkFrame(frame, fg_color="transparent")
-        exp.pack(fill="x", padx=20, pady=(4, 2))
-        exp.grid_columnconfigure((0, 1, 2), weight=1)
-        self.scan_word_btn = ctk.CTkButton(
-            exp, text=t("export_word"), height=40, corner_radius=8, state="disabled",
-            fg_color="#1e4620", hover_color="#2d6a30",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            command=lambda: threading.Thread(target=self._gen_word_report, daemon=True).start())
-        self.scan_word_btn.grid(row=0, column=0, padx=(0, 4), sticky="ew")
-        self.scan_pdf_btn = ctk.CTkButton(
-            exp, text=t("export_pdf"), height=40, corner_radius=8, state="disabled",
-            fg_color="#7a1e1e", hover_color="#c0392b",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            command=lambda: threading.Thread(target=self._gen_pdf_report, daemon=True).start())
-        self.scan_pdf_btn.grid(row=0, column=1, padx=4, sticky="ew")
-        self.scan_excel_btn = ctk.CTkButton(
-            exp, text=t("export_excel"), height=40, corner_radius=8, state="disabled",
-            fg_color="#1d4d3e", hover_color="#256b54",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            command=lambda: threading.Thread(target=self._gen_excel_report, daemon=True).start())
-        self.scan_excel_btn.grid(row=0, column=2, padx=(4, 0), sticky="ew")
+        # ── Кнопка Report (открывает панель экспорта Word/PDF/Excel) ──
+        self.scan_report_btn = ctk.CTkButton(
+            frame, text=t("report_btn"), height=42, corner_radius=8, state="disabled",
+            fg_color="#1f538d", hover_color="#2b6cb0",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._open_report_panel)
+        self.scan_report_btn.pack(fill="x", padx=20, pady=(6, 2))
 
         self.scan_export_status = ctk.CTkLabel(
             frame, text="", font=ctk.CTkFont(size=11), text_color="#2dc97e")
@@ -1491,8 +1536,7 @@ class RootkitGuard(ctk.CTk):
         self.normal_lbl.configure(text="—")
         self.anom_lbl.configure(text="—")
         self.threat_lbl.configure(text="—", text_color="white")
-        for _b in ("scan_word_btn","scan_pdf_btn","scan_excel_btn"):
-            if hasattr(self, _b): getattr(self, _b).configure(state="disabled")
+        if hasattr(self, "scan_report_btn"): self.scan_report_btn.configure(state="disabled")
         if hasattr(self, '_threat_panel'):
             try:
                 self._threat_panel.destroy()
@@ -1565,9 +1609,6 @@ class RootkitGuard(ctk.CTk):
                     self.scan_progress.set(1.0)
                     # AI анализ через API
                     self.after(0, lambda d=data: self._show_api_ai_panel(d))
-                    threat_api = data.get("threat", "")
-                    if threat_api == "ВЫСОКАЯ":
-                        if not getattr(self, "_parallel_scan", False): self.after(500, lambda d=data: self._show_defense_modal(d))
                     self.scan_result.configure(state="disabled")
                     return
                 log_ui(f"[!] API {resp.status_code} — локальный режим")
@@ -1722,12 +1763,8 @@ class RootkitGuard(ctk.CTk):
                 self.after(0, lambda i=insight: self._show_model_insight(i))
             self.scan_progress.set(1.0)
             if not getattr(self, "_parallel_scan", False): notify_threat(threat, f"{Path(path).name}: {n_anom} аномалий ({pct:.1f}%)")
-            # При ВЫСОКОЙ угрозе — автоматически запускаем Rootkit Scan
-            if threat == "ВЫСОКАЯ":
-                if not getattr(self, "_parallel_scan", False): log_ui("\n  🔴 ВЫСОКАЯ УГРОЗА — запускаю Auto Defense Mode...")
-                if not getattr(self, "_parallel_scan", False): self.after(500, lambda d=data: self._show_defense_modal(d))
-                self.after(1000, lambda: threading.Thread(
-                    target=self._run_rootkit_local, daemon=True).start())
+            # Auto Defense теперь срабатывает в Rootkit Defense при реальной
+            # угрозе на системе, а не на анализе CSV-файла трафика.
 
         except Exception as e:
             log_ui(f"[!] Ошибка: {e}")
@@ -1787,9 +1824,8 @@ class RootkitGuard(ctk.CTk):
         self.after(0, lambda c=bar_color: self.scan_progress.configure(
             progress_color=c))
         
-        self.after(0, lambda: [getattr(self, _b).configure(state="normal")
-                               for _b in ("scan_word_btn","scan_pdf_btn","scan_excel_btn")
-                               if hasattr(self, _b)])
+        self.after(0, lambda: self.scan_report_btn.configure(state="normal")
+                   if hasattr(self, "scan_report_btn") else None)
 
         # Добавляем в историю
         ts = self._last_scan.get("timestamp", "")
@@ -2077,110 +2113,166 @@ class RootkitGuard(ctk.CTk):
                      text_color="#94a3b8", justify="left").pack(anchor="w", pady=4)
 
 
-    def _show_defense_modal(self, data: dict):
-        ports = data.get("top_ports", [])
-        pct   = data.get("pct", 0.0)
+    def _extract_threat_targets(self, findings):
+        """Из находок rkdefense достаём PID-ы и пути бинарей для реагирования."""
+        import re
+        pids, paths = set(), set()
+        for f in findings:
+            blob = f"{getattr(f,'where','')} {getattr(f,'evidence','')} {getattr(f,'title','')}"
+            for m in re.findall(r"PID\s+(\d+)", blob):
+                pids.add(int(m))
+            for m in re.findall(r"(/[\w./\-]+)", blob):
+                if m.startswith(("/tmp", "/dev/shm", "/var/tmp", "/run", "/home", "/usr", "/bin", "/sbin")):
+                    paths.add(m)
+        return sorted(pids), sorted(paths)
+
+    def _show_defense_modal(self, findings):
+        """Auto Defense — реагирование на угрозы, найденные Rootkit Defense.
+        Действия: Изоляция (kill+iptables), Карантин файла, Форензика-снимок."""
+        if isinstance(findings, dict):   # обратная совместимость
+            findings = getattr(self, "_rkd_last_findings", [])
+        pids, paths = self._extract_threat_targets(findings)
+        high = sum(1 for f in findings if getattr(f, "severity", "") == "ВЫСОКАЯ")
 
         modal = ctk.CTkToplevel(self)
-        modal.title("🔴 Auto Defense Mode")
-        modal.geometry("500x480")
+        modal.title(t("defense_title"))
+        modal.geometry("560x560")
         modal.resizable(False, False)
         modal.configure(fg_color="#0a0e1a")
-        modal.grab_set()
-        modal.lift()
+        modal.grab_set(); modal.lift()
 
-        # Заголовок
         hdr = ctk.CTkFrame(modal, fg_color="#1a0000", corner_radius=10,
-                            border_width=1, border_color="#e74c3c")
-        hdr.pack(fill="x", padx=20, pady=(20, 10))
+                           border_width=1, border_color="#e74c3c")
+        hdr.pack(fill="x", padx=20, pady=(18, 8))
         ctk.CTkLabel(hdr, text=t("high_threat_hdr"),
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     text_color="#e74c3c").pack(pady=(12, 4))
-        ctk.CTkLabel(hdr, text=f"{t('anomalies')}: {data.get('anomalies',0):,}  ({pct:.1f}%)  ·  {t('attacked_ports')}: {ports[:3]}",
-                     font=ctk.CTkFont(size=11),
-                     text_color="#94a3b8").pack(pady=(0, 12))
+                     font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color="#e74c3c").pack(pady=(12, 2))
+        ctk.CTkLabel(hdr,
+                     text=f"{t('threats_lbl')}: {high}  ·  PID: {len(pids)}  ·  {t('file_lbl')}: {len(paths)}",
+                     font=ctk.CTkFont(size=11), text_color="#94a3b8").pack(pady=(0, 12))
 
-        # Шаги защиты
-        ctk.CTkLabel(modal, text=t("choose_actions"),
-                     font=ctk.CTkFont(size=12, weight="bold"),
-                     text_color="#64748b").pack(anchor="w", padx=20, pady=(0, 8))
-
-        # Статус лог
-        status_box = ctk.CTkTextbox(modal, height=120,
-                                     font=ctk.CTkFont(family="monospace", size=11),
-                                     fg_color="#0d1117", text_color="#64748b")
-        status_box.pack(fill="x", padx=20, pady=(0, 10))
-        status_box.insert("end", "[READY] Auto Defense Mode активирован\n")
-        status_box.insert("end", f"[INFO]  Обнаружено {data.get('anomalies',0)} аномалий\n")
-        if ports:
-            status_box.insert("end", f"[WARN]  Атакованные порты: {ports}\n")
-        status_box.configure(state="disabled")
-
-        def log_modal(msg):
+        status_box = ctk.CTkTextbox(modal, height=150,
+                                    font=ctk.CTkFont(family="monospace", size=11),
+                                    fg_color="#0d1117", text_color="#7fd1a8")
+        status_box.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+        def log_m(msg):
             status_box.configure(state="normal")
-            status_box.insert("end", msg + "\n")
-            status_box.see("end")
+            status_box.insert("end", msg + "\n"); status_box.see("end")
             status_box.configure(state="disabled")
+        log_m(f"[READY] {t('defense_title')}")
+        log_m(f"[INFO]  PID-цели: {pids or '—'}")
+        log_m(f"[INFO]  Файлы-цели: {paths or '—'}")
 
-        # Кнопки действий
-        def run_rootkit():
-            log_modal("[*] Запускаю Rootkit Scan...")
-            modal.after(300, lambda: threading.Thread(
-                target=self._run_rootkit_local, daemon=True).start())
-            self.show_page("rkdefense")
-            modal.destroy()
+        # ── Действие 1: Изоляция угрозы (kill + iptables по соединениям) ──
+        def isolate():
+            import os, signal, psutil
+            if not pids:
+                log_m("[!] Нет PID для изоляции"); return
+            log_m("[*] Изоляция: завершаю процессы и собираю их IP...")
+            remote_ips = set()
+            for pid in pids:
+                try:
+                    pr = psutil.Process(pid)
+                    for c in pr.net_connections(kind="inet"):
+                        if c.raddr:
+                            remote_ips.add(c.raddr.ip)
+                except Exception:
+                    pass
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                    log_m(f"[+] kill -9 {pid}")
+                except PermissionError:
+                    log_m(f"[!] нет прав на kill {pid} → sudo kill -9 {pid}")
+                except ProcessLookupError:
+                    log_m(f"[i] PID {pid} уже завершён")
+            cmds = [f"sudo iptables -A OUTPUT -d {ip} -j DROP" for ip in sorted(remote_ips)]
+            if cmds:
+                log_m("[*] Команды блокировки удалённых IP:")
+                for c in cmds: log_m(f"    {c}")
+                self.clipboard_clear(); self.clipboard_append("\n".join(cmds))
+                log_m("[✓] Команды скопированы в буфер")
+            else:
+                log_m("[i] Активных удалённых соединений не найдено")
 
-        def block_ports():
-            if not ports:
-                log_modal("[!] Нет подозрительных портов для блокировки")
-                return
-            log_modal("[*] Генерирую правила iptables...")
-            rules = []
-            for p in ports[:5]:
-                rules.append(f"iptables -A INPUT -p tcp --dport {p} -j DROP")
-            log_modal("[+] Правила для блокировки:")
-            for r in rules:
-                log_modal(f"    {r}")
-            log_modal("[!] Скопируй и выполни в терминале от root")
-            # Копируем в буфер
-            self.clipboard_clear()
-            self.clipboard_append("\n".join(rules))
-            log_modal("[✓] Скопировано в буфер обмена")
+        # ── Действие 2: Карантин файла (move + снять +x) ──
+        def quarantine():
+            import shutil, os
+            if not paths:
+                log_m("[!] Нет файлов для карантина"); return
+            qdir = Path("reports") / "quarantine"
+            qdir.mkdir(parents=True, exist_ok=True)
+            for fp in paths:
+                try:
+                    if not os.path.exists(fp):
+                        log_m(f"[i] {fp} не существует"); continue
+                    dst = qdir / (Path(fp).name + f".{int(datetime.now().timestamp())}.quar")
+                    os.chmod(fp, 0o000)
+                    shutil.move(fp, dst)
+                    log_m(f"[+] {fp} → {dst} (флаг исполнения снят)")
+                except PermissionError:
+                    log_m(f"[!] нет прав → sudo mv {fp} {qdir}/ ; sudo chmod 000 ...")
+                except Exception as e:
+                    log_m(f"[!] {fp}: {e}")
 
-        def create_report():
-            log_modal("[*] Создаю PDF отчёт...")
-            threading.Thread(target=self._gen_pdf_report, daemon=True).start()
-            log_modal("[✓] Отчёт генерируется...")
+        # ── Действие 3: Форензика-снимок ──
+        def forensics():
+            import psutil, json
+            log_m("[*] Сбор форензики...")
+            snap = {"timestamp": datetime.now().isoformat(), "targets_pid": pids,
+                    "targets_file": paths, "processes": [], "connections": []}
+            for pid in pids:
+                try:
+                    pr = psutil.Process(pid)
+                    with pr.oneshot():
+                        snap["processes"].append({
+                            "pid": pid, "name": pr.name(), "exe": pr.exe(),
+                            "cmdline": pr.cmdline(), "username": pr.username(),
+                            "open_files": [f.path for f in pr.open_files()][:20]})
+                        for c in pr.net_connections(kind="inet"):
+                            snap["connections"].append({
+                                "pid": pid,
+                                "laddr": f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else "",
+                                "raddr": f"{c.raddr.ip}:{c.raddr.port}" if c.raddr else "",
+                                "status": c.status})
+                except Exception as e:
+                    snap["processes"].append({"pid": pid, "error": str(e)})
+            Path("reports").mkdir(exist_ok=True)
+            out = Path("reports") / f"forensics_{datetime.now():%Y%m%d_%H%M%S}.json"
+            out.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+            log_m(f"[✓] Снимок сохранён: {out}")
 
         btns = ctk.CTkFrame(modal, fg_color="transparent")
-        btns.pack(fill="x", padx=20, pady=(0, 10))
-        btns.grid_columnconfigure(0, weight=1)
-        btns.grid_columnconfigure(1, weight=1)
-        btns.grid_columnconfigure(2, weight=1)
-
-        ctk.CTkButton(btns, text=t("block_ports"),
-                      height=42, corner_radius=8,
-                      fg_color="#1a3a1a", hover_color="#2d6a4f",
+        btns.pack(fill="x", padx=20, pady=(0, 6))
+        btns.grid_columnconfigure((0, 1, 2), weight=1)
+        ctk.CTkButton(btns, text=t("def_isolate"), height=42, corner_radius=8,
+                      fg_color="#7a1e1e", hover_color="#c0392b",
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=block_ports
+                      command=lambda: threading.Thread(target=isolate, daemon=True).start()
+                      ).grid(row=0, column=0, padx=(0, 4), sticky="ew")
+        ctk.CTkButton(btns, text=t("def_quarantine"), height=42, corner_radius=8,
+                      fg_color="#7a4520", hover_color="#a35e2a",
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=lambda: threading.Thread(target=quarantine, daemon=True).start()
                       ).grid(row=0, column=1, padx=4, sticky="ew")
-
-        ctk.CTkButton(btns, text=t("pdf_report_btn"),
-                      height=42, corner_radius=8,
-                      fg_color="#1a1a3a", hover_color="#1f538d",
+        ctk.CTkButton(btns, text=t("def_forensics"), height=42, corner_radius=8,
+                      fg_color="#13294a", hover_color="#1c3a63",
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=create_report
-                      ).grid(row=0, column=2, padx=4, sticky="ew")
+                      command=lambda: threading.Thread(target=forensics, daemon=True).start()
+                      ).grid(row=0, column=2, padx=(4, 0), sticky="ew")
 
-        ctk.CTkButton(modal, text=t("close_btn"),
-                      height=36, corner_radius=8,
-                      fg_color="transparent", border_width=1,
-                      border_color="#2d3748",
-                      text_color="#64748b",
-                      font=ctk.CTkFont(size=12),
-                      command=modal.destroy
-                      ).pack(pady=(0, 20))
-            
+        # Нижняя строка: маленькая PDF-кнопка справа в углу + Закрыть
+        bottom = ctk.CTkFrame(modal, fg_color="transparent")
+        bottom.pack(fill="x", padx=20, pady=(2, 14))
+        ctk.CTkButton(bottom, text=t("close_btn"), width=120, height=32,
+                      fg_color="#1e293b", hover_color="#2d3748",
+                      command=modal.destroy).pack(side="left")
+        ctk.CTkButton(bottom, text="📕 PDF", width=80, height=28, corner_radius=6,
+                      fg_color="transparent", border_width=1, border_color="#7a1e1e",
+                      text_color="#e07a7a", font=ctk.CTkFont(size=11),
+                      command=lambda: threading.Thread(
+                          target=self._gen_pdf_report, daemon=True).start()
+                      ).pack(side="right")
+
     def _update_scan_history(self):
         self.scan_history_box.configure(state="normal")
         self.scan_history_box.delete("1.0", "end")
@@ -3164,9 +3256,58 @@ Security Score: {insight['metrics'][0][1]}
         out_path.write_text(rpt, encoding="utf-8")
         self.report_status.configure(text=f"✓ {t('saved_to')}: reports/{out_name}")
 
+    def _open_report_panel(self):
+        """Окно Report: экспорт последнего скана в Word / PDF / Excel."""
+        if not getattr(self, "_last_scan", None) or not self._last_scan.get("total"):
+            self._set_export_status(t("no_data_scan_first"), "#f39c12")
+            return
+        if getattr(self, "_report_win", None) is not None:
+            try:
+                if self._report_win.winfo_exists():
+                    self._report_win.lift(); return
+            except Exception:
+                pass
+        win = ctk.CTkToplevel(self)
+        win.title(t("report_btn"))
+        win.geometry("420x300")
+        win.resizable(False, False)
+        win.configure(fg_color="#0a0e1a")
+        win.grab_set(); win.lift()
+        self._report_win = win
+
+        ctk.CTkLabel(win, text=t("report_hdr"),
+                     font=ctk.CTkFont(size=16, weight="bold"),
+                     text_color="#00d4ff").pack(pady=(18, 4))
+        s_ = self._last_scan
+        ctk.CTkLabel(win, text=f"{s_['filename'] or '—'}  ·  {t('threat')}: {s_['threat']}",
+                     font=ctk.CTkFont(size=11), text_color="#94a3b8").pack(pady=(0, 14))
+
+        def make(text, color, hover, fn):
+            ctk.CTkButton(win, text=text, height=44, width=320, corner_radius=8,
+                          fg_color=color, hover_color=hover,
+                          font=ctk.CTkFont(size=14, weight="bold"),
+                          command=lambda: threading.Thread(target=fn, daemon=True).start()
+                          ).pack(pady=5)
+        make(t("export_word"),  "#1e4620", "#2d6a30", self._gen_word_report)
+        make(t("export_pdf"),   "#7a1e1e", "#c0392b", self._gen_pdf_report)
+        make(t("export_excel"), "#1d4d3e", "#256b54", self._gen_excel_report)
+
+        self.report_win_status = ctk.CTkLabel(win, text="", font=ctk.CTkFont(size=11),
+                                              text_color="#2dc97e")
+        self.report_win_status.pack(pady=(8, 0))
+        def on_close():
+            self._report_win = None; win.destroy()
+        win.protocol("WM_DELETE_WINDOW", on_close)
+
     def _set_export_status(self, text, color="#2dc97e"):
         if hasattr(self, "scan_export_status") and self.scan_export_status.winfo_exists():
             self.after(0, lambda: self.scan_export_status.configure(text=text, text_color=color))
+        if hasattr(self, "report_win_status"):
+            try:
+                if self.report_win_status.winfo_exists():
+                    self.after(0, lambda: self.report_win_status.configure(text=text, text_color=color))
+            except Exception:
+                pass
 
     def _gen_pdf_report(self):
         try:
@@ -3760,6 +3901,9 @@ Security Score: {insight['metrics'][0][1]}
                 text="\u25cf SCAN COMPLETE", text_color=c))
 
             self.after(0, lambda f=all_findings, t=threat: self._render_rkd_findings(f, t))
+
+            if threat == "ВЫСОКАЯ":
+                self.after(600, lambda f=all_findings: self._show_defense_modal(f))
 
             if all_findings:
                 self._rkdefense_learn(all_findings)

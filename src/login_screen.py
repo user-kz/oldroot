@@ -61,20 +61,6 @@ class LoginScreen(ctk.CTk):
         container.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88)
         self._container = container
 
-        # Переключатель языка
-        lang_row = ctk.CTkFrame(container, fg_color="transparent")
-        lang_row.pack(pady=(0, 6))
-        for code, label in (("ru", "РУС"), ("en", "ENG"), ("kz", "ҚАЗ")):
-            active = (get_lang() == code)
-            ctk.CTkButton(
-                lang_row, text=label, width=46, height=22,
-                font=ctk.CTkFont(size=10, weight="bold"),
-                fg_color=ACCENT if active else "#1e293b",
-                text_color="#000000" if active else TEXT,
-                hover_color="#2d3748", corner_radius=6,
-                command=lambda c=code: self._set_lang(c)
-            ).pack(side="left", padx=2)
-
         # Логотип — только иконка без текста
         try:
             img = ctk.CTkImage(

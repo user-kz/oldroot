@@ -5,3 +5,6 @@ data/live_traffic.csv
 data/live_*.csv
 data/live_*.pcap
 data/attack.pcap
+
+__pycache__/
+*.pyc

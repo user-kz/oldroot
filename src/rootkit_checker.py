@@ -102,6 +102,55 @@ def _file_md5(path: str) -> Optional[str]:
         return None
 
 
+def _read_cmdline(pid: str) -> str:
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return f.read().replace(b"\x00", b" ").decode(errors="ignore").strip()
+    except Exception:
+        return ""
+
+
+def _tcp_socket_map() -> dict:
+    sockets = {}
+    states = {"01": "ESTABLISHED", "0A": "LISTEN"}
+    for table in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            lines = Path(table).read_text(errors="ignore").splitlines()[1:]
+        except Exception:
+            continue
+        for line in lines:
+            parts = line.split()
+            if len(parts) < 10:
+                continue
+            try:
+                local_port = int(parts[1].rsplit(":", 1)[1], 16)
+                remote_port = int(parts[2].rsplit(":", 1)[1], 16)
+            except Exception:
+                continue
+            sockets[parts[9]] = {
+                "state": states.get(parts[3], parts[3]),
+                "local_port": local_port,
+                "remote_port": remote_port,
+            }
+    return sockets
+
+
+def _process_socket_inodes(pid: str) -> set:
+    inodes = set()
+    try:
+        for fd in os.listdir(f"/proc/{pid}/fd"):
+            try:
+                target = os.readlink(f"/proc/{pid}/fd/{fd}")
+            except Exception:
+                continue
+            match = re.match(r"socket:\[(\d+)\]", target)
+            if match:
+                inodes.add(match.group(1))
+    except Exception:
+        pass
+    return inodes
+
+
 # ── Проверки ───────────────────────────────────────────────────
 
 class RootkitChecker:
@@ -388,6 +437,17 @@ class RootkitChecker:
         """
         findings = []
         log.info("Проверка привилегированных аккаунтов...")
+        backdoor_ports = {4444, 6666, 6667, 31337, 1337, 12345, 5555, 2323}
+        shell_tools = {
+            "sh", "bash", "dash", "zsh", "ksh", "fish",
+            "nc", "ncat", "netcat", "socat",
+            "python", "python3", "perl", "ruby", "php", "lua",
+        }
+        legit = {"sudo", "su", "passwd", "polkitd", "pkexec",
+                 "gpasswd", "chsh", "chfn", "newgrp", "mount",
+                 "umount", "ping", "fusermount", "fusermount3", "dbus-daemon",
+                 "snapd", "snap-confine", "ntfs-3g", "at",
+                 "systemd", "agetty", "login", "sshd", "cron"}
 
         try:
             passwd = Path("/etc/passwd").read_text()
@@ -408,6 +468,75 @@ class RootkitChecker:
                     log.warning(f"UID=0 у пользователя: {username}")
         except Exception as e:
             log.debug(f"Ошибка чтения /etc/passwd: {e}")
+
+        socket_map = _tcp_socket_map()
+        try:
+            for entry in os.listdir("/proc"):
+                if not entry.isdigit():
+                    continue
+                status_path = Path(f"/proc/{entry}/status")
+                if not status_path.exists():
+                    continue
+                try:
+                    status = status_path.read_text(errors="ignore")
+                    uid_match = re.search(r"^Uid:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)", status, re.M)
+                    name_match = re.search(r"^Name:\s+(.+)", status, re.M)
+                    if not uid_match:
+                        continue
+                    ruid = int(uid_match.group(1))
+                    euid = int(uid_match.group(2))
+                    suid = int(uid_match.group(3))
+                    pname = name_match.group(1) if name_match else "?"
+                    if euid != 0 or pname in legit:
+                        continue
+
+                    cmdline = _read_cmdline(entry)
+                    exe = ""
+                    try:
+                        exe = os.readlink(f"/proc/{entry}/exe")
+                    except Exception:
+                        pass
+                    proc_sockets = [
+                        socket_map[i] for i in _process_socket_inodes(entry)
+                        if i in socket_map
+                    ]
+                    bad_socket = next((
+                        s for s in proc_sockets
+                        if s["local_port"] in backdoor_ports
+                        or s["remote_port"] in backdoor_ports
+                    ), None)
+                    exe_from_user_space = exe.startswith((
+                        "/tmp/", "/var/tmp/", "/dev/shm/", "/run/shm/", "/home/"
+                    )) or " (deleted)" in exe
+                    suspicious_cmd = any(x in cmdline.lower() for x in (
+                        " /dev/tcp/", " nc ", " ncat ", " netcat ", " socat ",
+                        "python -c", "python3 -c", "perl -e", "bash -i", "sh -i",
+                    ))
+                    classic_lpe = ruid != 0 and euid == 0
+                    post_lpe_shell = (
+                        pname in shell_tools
+                        and (bad_socket or suspicious_cmd or exe_from_user_space)
+                    )
+                    if not (classic_lpe or post_lpe_shell):
+                        continue
+
+                    net = ""
+                    if bad_socket:
+                        net = (f"; tcp {bad_socket['state']} "
+                               f"local:{bad_socket['local_port']} "
+                               f"remote:{bad_socket['remote_port']}")
+                    findings.append(RootkitFinding(
+                        category    = "privilege_escalation",
+                        severity    = "ВЫСОКАЯ",
+                        description = f"Подозрительный root-процесс после возможной LPE: PID {entry} ({pname})",
+                        detail      = (f"Uid: {ruid} {euid} {suid}; exe={exe}; "
+                                       f"cmd={cmdline[:120]}{net}"),
+                    ))
+                    log.warning(f"Подозрительный root-процесс: pid={entry} name={pname}{net}")
+                except Exception:
+                    continue
+        except Exception as e:
+            log.debug(f"Ошибка проверки root-процессов: {e}")
 
         return findings
 

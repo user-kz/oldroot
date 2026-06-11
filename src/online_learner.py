@@ -3,12 +3,10 @@ online_learner.py — Автономное самообучение модели
 """
 import joblib
 import pandas as pd
-import numpy as np
 import json
 from pathlib import Path
 from datetime import datetime
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
 
 
 class OnlineLearner:

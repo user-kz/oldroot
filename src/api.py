@@ -8,7 +8,7 @@ api.py — FastAPI backend.
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel

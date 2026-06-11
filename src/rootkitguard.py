@@ -134,7 +134,6 @@ class RootkitGuard(ctk.CTk):
             print(f"[ThreatMonitor] RF: {e}")
 
         try:
-            import xgboost as xgb
             self.xgb_model = joblib.load("models/xgb_cicids.pkl")
         except Exception as e:
             self.xgb_model = None
@@ -509,7 +508,7 @@ class RootkitGuard(ctk.CTk):
                 self.model_lbl.configure(text="● Ошибка загрузки", text_color="red")
         except Exception as e:
             log.error(f"Demo model error: {e}")
-            self.model_lbl.configure(text=f"● Ошибка", text_color="red")
+            self.model_lbl.configure(text="● Ошибка", text_color="red")
 
     # ── Главная ─────────────────────────────────────────────────
 
@@ -517,7 +516,6 @@ class RootkitGuard(ctk.CTk):
 
 
     def _page_home(self):
-        import time
         from pathlib import Path
     
         frame = ctk.CTkFrame(self.main, fg_color="transparent")
@@ -2413,27 +2411,13 @@ class RootkitGuard(ctk.CTk):
         self.rk_status.configure(text="API сканирование...", text_color="yellow")
         try:
             import requests
-            resp = requests.get(f"{API_BASE}/rootkit", timeout=30)
+            resp = requests.post(f"{API_BASE}/rootkit/scan", timeout=30)
             if resp.status_code == 200:
                 data = resp.json()
-                self.rk_score_lbl.configure(text=str(data.get("score", "—")))
-                self.rk_status.configure(text="Готово", text_color="#2dc97e")
-            else:
-                self.rk_status.configure(text=f"API {resp.status_code}", text_color="#e74c3c")
-        except Exception as e:
-            self.rk_status.configure(text=f"Ошибка: {str(e)[:30]}", text_color="#e74c3c")
-    def _run_rootkit_api(self):
-        if not self._api_available:
-            self.rk_status.configure(text="API недоступен", text_color="#e74c3c")
-            return
-        self.rk_status.configure(text="API сканирование...", text_color="yellow")
-        try:
-            import requests
-            resp = requests.get(f"{API_BASE}/rootkit", timeout=30)
-            if resp.status_code == 200:
-                data = resp.json()
-                self.rk_score_lbl.configure(text=str(data.get("score", "—")))
-                self.rk_status.configure(text="Готово", text_color="#2dc97e")
+                self.rk_score_lbl.configure(
+                    text=f"{data.get('failed', 0)}/{data.get('total_checks', 0)}")
+                self.rk_status.configure(
+                    text=f"Готово · {data.get('threat_level', '—')}", text_color="#2dc97e")
             else:
                 self.rk_status.configure(text=f"API {resp.status_code}", text_color="#e74c3c")
         except Exception as e:
@@ -3186,7 +3170,6 @@ Security Score: {insight['metrics'][0][1]}
 
 
     def _page_console(self):
-        import threading
         frame = ctk.CTkFrame(self.main, fg_color="transparent")
 
         # Заголовок
@@ -3362,8 +3345,8 @@ Security Score: {insight['metrics'][0][1]}
                 text="⏹  Остановить", fg_color="#7a1e1e", text_color="white")
             self.console_status.configure(text="● ONLINE", text_color="#00ff88")
             self._console_log("[*] Запуск мониторинга...")
-            self._console_log(f"[*] Интерфейс: enp0s3 | Интервал: 2 сек")
-            self._console_log(f"[*] Модели: RF + XGB + ISO + RootkitGuard ML")
+            self._console_log("[*] Интерфейс: enp0s3 | Интервал: 2 сек")
+            self._console_log("[*] Модели: RF + XGB + ISO + RootkitGuard ML")
             self._console_log("-" * 50)
 
     def _on_console_event(self, event: dict):
@@ -3919,7 +3902,7 @@ Security Score: {insight['metrics'][0][1]}
             # ── MITRE ATT&CK footer ──
             foot = ctk.CTkFrame(content_col, fg_color="transparent")
             foot.pack(fill="x", padx=12, pady=(2, 10))
-            ctk.CTkLabel(foot, text=f"\u2316 MITRE ATT&CK",
+            ctk.CTkLabel(foot, text="\u2316 MITRE ATT&CK",
                          font=ctk.CTkFont(family=MONO, size=8, weight="bold"),
                          text_color=P["purple"]).pack(side="left")
             ctk.CTkLabel(foot, text=f.mitre,

@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from pathlib import Path
 
 def load_dataset(path: str) -> pd.DataFrame:

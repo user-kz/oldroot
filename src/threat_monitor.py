@@ -3,7 +3,6 @@ threat_monitor.py — Adaptive Threat Detection System v2
 """
 import threading
 import subprocess
-import time
 import joblib
 import pandas as pd
 import numpy as np
@@ -351,23 +350,23 @@ class ThreatMonitor:
         from pathlib import Path
         try:
             rf_default = joblib.load("models/rf_default.pkl")
-        except:
+        except Exception:
             rf_default = self.rf
 
         try:
             xgb_model = joblib.load("models/xgb_cicids.pkl")
-        except:
+        except Exception:
             xgb_model = rf_default
 
         try:
             iso_model = joblib.load("models/iso_cicids.pkl")
-        except:
+        except Exception:
             iso_model = rf_default
 
         try:
             rkg_path = "models/rf_rootkitguard.pkl"
             rkg_model = joblib.load(rkg_path) if Path(rkg_path).exists() else rf_default
-        except:
+        except Exception:
             rkg_model = rf_default
 
         models = {

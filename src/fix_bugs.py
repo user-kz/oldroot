@@ -6,7 +6,6 @@ fix_bugs.py — исправляет найденные баги:
   БАГ #3: show_page("rootkit") — страницы нет, будет KeyError (3 места)
   БАГ #4: _toggle_nav — pages_nav ссылается на несуществующий ключ "rootkit"
 """
-import re
 
 BASE = "/home/manasuser/rootkitguard_fresh/src"
 

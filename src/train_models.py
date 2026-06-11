@@ -11,8 +11,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import argparse
 import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier, IsolationForest
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
 import xgboost as xgb

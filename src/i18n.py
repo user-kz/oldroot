@@ -163,7 +163,6 @@ def t(key: str) -> str:
     return TRANSLATIONS.get(_current_lang, {}).get(key, key)
 
 # Добавляем недостающие ключи
-import sys
 _add = {
     "ru": {"boot_msg": "RootkitGuard v2.1 запущен", "auth_msg": "Пользователь авторизован", "config_msg": "Конфигурация загружена: config/config.yaml", "ml_loaded": "Модель загружена: rf_cicids.pkl ✓", "scan_started": "Авто-сканирование системы запущено в фоне", "ready_msg": "Система готова к работе"},
     "en": {"boot_msg": "RootkitGuard v2.1 started", "auth_msg": "User authorized", "config_msg": "Configuration loaded: config/config.yaml", "ml_loaded": "Model loaded: rf_cicids.pkl ✓", "scan_started": "Auto-scan started in background", "ready_msg": "System ready"},

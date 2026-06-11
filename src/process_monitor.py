@@ -5,12 +5,10 @@ process_monitor.py — мониторинг процессов через psutil
 """
 import psutil
 import pandas as pd
-import numpy as np
 import joblib
 import threading
 import time
 from datetime import datetime
-from pathlib import Path
 
 try:
     from logger import get_logger

@@ -1,8 +1,6 @@
 import subprocess
 import pandas as pd
-import numpy as np
 import joblib
-from pathlib import Path
 
 def get_interfaces():
     result = subprocess.run(["ip", "-o", "link", "show"], capture_output=True, text=True)

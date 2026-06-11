@@ -18,7 +18,7 @@ import hashlib
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import List
 
 
@@ -208,7 +208,7 @@ class RootkitDetector:
                             why      = "Обнаружен модуль с именем известного публичного rootkit.",
                             fix      = f"sudo rmmod {entry}",
                             mitre    = "T1547.006 (Kernel Modules)",
-                            evidence = f"Совпадение по сигнатуре имени"
+                            evidence = "Совпадение по сигнатуре имени"
                         ))
         except Exception as e:
             findings.append(Finding(

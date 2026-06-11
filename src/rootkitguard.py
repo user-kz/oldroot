@@ -3323,10 +3323,10 @@ Security Score: {insight['metrics'][0][1]}
             text_color=C_DIM)
         self.rkd_baseline_lbl.pack(anchor="w", padx=16, pady=(0, 14))
 
-        # ── Правая панель: 5 детекторов (сетка 5 колонок) ─────────
+        # ── Правая панель: 6 детекторов (сетка 6 колонок) ─────────
         det_panel = ctk.CTkFrame(top, fg_color="transparent")
         det_panel.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
-        for i in range(5):
+        for i in range(6):
             det_panel.grid_columnconfigure(i, weight=1)
         det_panel.grid_rowconfigure(0, weight=1)
 
@@ -3335,6 +3335,7 @@ Security Score: {insight['metrics'][0][1]}
             ("HIDDEN\nPROC",    "\U0001f50e", "T1014"),
             ("HIDDEN\nLKM",     "\U0001f9e9", "T1547"),
             ("PRIV\nESC",       "\U0001f513", "T1548"),
+            ("LD\nPRELOAD",     "\U0001f517", "T1574"),
             ("BINARY\nINTEGRITY","\U0001f4c1", "T1554"),
             ("BACKDOOR\nPORTS", "\U0001f50c", "T1571"),
         ]
@@ -3400,6 +3401,16 @@ Security Score: {insight['metrics'][0][1]}
             font=ctk.CTkFont(family=MONO, size=11),
             command=self._copy_all_log)
         self._copy_btn.pack(side="left", padx=(0, 6), pady=9)
+
+        # Очистить результаты
+        ctk.CTkButton(actions, text=t("clear_btn"),
+                      width=120, height=34, corner_radius=8,
+                      fg_color=C_PANEL_HI, hover_color="#3a1620",
+                      border_width=1, border_color=C_DIM,
+                      text_color="#c7d3e3",
+                      font=ctk.CTkFont(family=MONO, size=11),
+                      command=self._clear_rkdefense
+                      ).pack(side="left", padx=(0, 6), pady=9)
 
         # Threat-индикатор справа
         self.rkd_threat_lbl = ctk.CTkLabel(
@@ -3493,12 +3504,13 @@ Security Score: {insight['metrics'][0][1]}
                 (0, det.detect_hidden_processes),
                 (1, det.detect_hidden_modules),
                 (2, det.detect_privilege_escalation),
-                (3, det.detect_binary_tampering),
-                (4, det.detect_suspicious_connections),
+                (3, det.detect_ld_preload),
+                (4, det.detect_binary_tampering),
+                (5, det.detect_suspicious_connections),
             ]
             all_findings = []
             for idx, fn in methods:
-                self.after(0, lambda p=(idx+1)/5: self.rkd_progress.set(p))
+                self.after(0, lambda p=(idx+1)/6: self.rkd_progress.set(p))
                 try:
                     found = fn()
                     real = [f for f in found if not (f.severity == "НИЗКАЯ" and f.title == "Ошибка проверки")]
@@ -3549,6 +3561,24 @@ Security Score: {insight['metrics'][0][1]}
             self.after(0, lambda err=str(e): self.rkd_status.configure(
                 text=f"{t('error_lc')}: {err[:40]}", text_color=P["red"]))
 
+    def _clear_rkdefense(self):
+        """Сбросить результаты последнего скана: находки, карточки, score."""
+        P = self._rkd_palette
+        for w in self.rkd_findings_frame.winfo_children():
+            w.destroy()
+        for card, status, strip in self._rkd_cards:
+            card.configure(border_color=P["border"])
+            status.configure(text="\u25cb", text_color=P["dim"])
+            strip.configure(fg_color=P["dim"])
+        self.rkd_score_lbl.configure(text="--", text_color=P["dim"])
+        self.rkd_verdict.configure(text=t("waiting_caps"), text_color=P["dim"])
+        self.rkd_threat_lbl.configure(text="")
+        self.rkd_progress.set(0)
+        self.rkd_status.configure(text=t("ready_to_scan_lc"), text_color=P["dim"])
+        self.rkd_engine_lbl.configure(text="\u25cf IDLE", text_color=P["dim"])
+        self._rkd_last_findings = []
+        self._last_rkd_report = []
+
     def _render_rkd_findings(self, findings: list, threat: str):
         """Рисует находки как forensic-инциденты."""
         P = self._rkd_palette
@@ -3593,8 +3623,19 @@ Security Score: {insight['metrics'][0][1]}
                          text_color=P["dim"]).pack()
             return
 
-        # Карточки-инциденты
-        for i, f in enumerate(findings):
+        # Карточки-инциденты (рендерим не больше _RKD_MAX —
+        # сотни тяжёлых карточек подвешивают UI; остальное есть в отчёте)
+        _RKD_MAX = 40
+        if len(findings) > _RKD_MAX:
+            warn = ctk.CTkFrame(self.rkd_findings_frame, fg_color=P["panel"],
+                                corner_radius=8, border_width=1, border_color=P["amber"])
+            warn.pack(fill="x", padx=10, pady=(8, 2))
+            ctk.CTkLabel(warn,
+                         text=f"Показаны первые {_RKD_MAX} из {len(findings)} находок. "
+                              f"Полный список — в «Копировать всё».",
+                         font=ctk.CTkFont(family=MONO, size=10),
+                         text_color=P["amber"]).pack(anchor="w", padx=12, pady=8)
+        for i, f in enumerate(findings[:_RKD_MAX]):
             sev_color = {"ВЫСОКАЯ": P["red"], "СРЕДНЯЯ": P["amber"],
                          "НИЗКАЯ": P["mono"]}.get(f.severity, P["mono"])
 

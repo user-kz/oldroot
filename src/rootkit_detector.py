@@ -103,6 +103,56 @@ class RootkitDetector:
                 if line.isdigit():
                     ps_pids.add(int(line))
 
+            # ── unhide «checkbrute»: ищем PID, отвечающие на kill -0,
+            #    но отсутствующие в /proc (скрыты из самого procfs) ──
+            # ВАЖНО: kill -0 отвечает и на TID потоков (они в /proc/<pid>/task,
+            # но не как директории /proc/<tid>). Без учёта потоков получаем сотни
+            # ложных «скрытых процессов». Поэтому собираем и все TID тоже.
+            known = set(proc_pids)
+            for pid in proc_pids:
+                try:
+                    for tid in os.listdir(f"/proc/{pid}/task"):
+                        if tid.isdigit():
+                            known.add(int(tid))
+                except Exception:
+                    continue
+
+            try:
+                pid_max = int(Path("/proc/sys/kernel/pid_max").read_text().strip())
+            except Exception:
+                pid_max = 32768
+            pid_max = min(pid_max, 65536)  # ограничиваем для скорости
+            for pid in range(1, pid_max):
+                if pid in known:
+                    continue
+                try:
+                    os.kill(pid, 0)        # 0 — только проверка существования
+                except (ProcessLookupError, PermissionError):
+                    # ProcessLookupError — нет процесса.
+                    # PermissionError на «чужой» PID почти всегда означает
+                    # короткоживущий системный процесс (гонка), а не rootkit.
+                    continue
+                except Exception:
+                    continue
+                # Повторная верификация: процесс мог появиться после снимка /proc.
+                # Скрытым считаем только если /proc/<pid> и task/ по-прежнему нет.
+                if os.path.exists(f"/proc/{pid}") or os.path.exists(f"/proc/{pid}/task"):
+                    continue
+                findings.append(Finding(
+                    method   = "Hidden Process (PID bruteforce)",
+                    severity = "ВЫСОКАЯ",
+                    title    = f"Скрытый процесс PID {pid} (brute-force)",
+                    where    = f"PID {pid} — отвечает на kill -0, но отсутствует в /proc",
+                    how      = ("PID отвечает на сигнал 0 (процесс жив), но его нет ни в "
+                                "/proc (включая task/), ни в ps. Признак LKM-rootkit, "
+                                "скрывающего процесс на уровне ядра (техника unhide checkbrute)."),
+                    why      = ("Процесс скрыт даже от /proc — обычными средствами его не "
+                                "увидеть. Так прячутся kernel-level backdoor и импланты."),
+                    fix      = f"sudo kill -9 {pid}  # завершить\nsudo ls -la /proc/{pid}/exe 2>/dev/null",
+                    mitre    = "T1014 (Rootkit), T1564.001 (Hidden Artifacts)",
+                    evidence = f"kill -0 {pid} → жив, /proc/{pid} отсутствует"
+                ))
+
             # Процессы которые есть в /proc но скрыты от ps
             hidden = proc_pids - ps_pids
             # Фильтруем — ядерные потоки и короткоживущие могут давать ложные
@@ -281,6 +331,78 @@ class RootkitDetector:
                 how=f"{e}", why="—", fix="—", mitre="—"))
         return findings
 
+    # ── МЕТОД 3.5: LD_PRELOAD инъекция (userland rootkit) ────────
+    def detect_ld_preload(self) -> List[Finding]:
+        """Проверяем /etc/ld.so.preload и переменную LD_PRELOAD у процессов.
+        Так работают userland-rootkit вроде Azazel / Jynx / beurk."""
+        findings = []
+        # 2a. /etc/ld.so.preload — глобальная инъекция во все процессы
+        preload_file = "/etc/ld.so.preload"
+        try:
+            if os.path.exists(preload_file):
+                content = Path(preload_file).read_text(errors="ignore").strip()
+                if content:
+                    findings.append(Finding(
+                        method   = "LD_PRELOAD Injection",
+                        severity = "ВЫСОКАЯ",
+                        title    = "Активен /etc/ld.so.preload",
+                        where    = preload_file,
+                        how      = (f"Файл {preload_file} существует и не пуст. Все библиотеки "
+                                    f"из него загружаются в КАЖДЫЙ запускаемый процесс."),
+                        why      = ("Userland-rootkit (Azazel, Jynx, beurk) через ld.so.preload "
+                                    "перехватывает libc-функции (readdir, open, write) и скрывает "
+                                    "файлы, процессы, соединения от всех программ сразу."),
+                        fix      = f"sudo cat {preload_file}\nsudo rm {preload_file}  # после проверки содержимого",
+                        mitre    = "T1574.006 (Dynamic Linker Hijacking)",
+                        evidence = f"содержимое: {content[:200]}"
+                    ))
+        except Exception:
+            pass
+        # 2b. LD_PRELOAD в окружении живых процессов
+        try:
+            for entry in os.listdir("/proc"):
+                if not entry.isdigit():
+                    continue
+                environ_path = f"/proc/{entry}/environ"
+                try:
+                    env = Path(environ_path).read_bytes().decode(errors="ignore")
+                except Exception:
+                    continue
+                for kv in env.split("\x00"):
+                    if not (kv.startswith("LD_PRELOAD=") and kv[len("LD_PRELOAD="):].strip()):
+                        continue
+                    val = kv.split("=", 1)[1]
+                    # Легитимные preload-библиотеки лежат в системных каталогах
+                    # (gtk-модули, snap, антивирусы). Флажим ТОЛЬКО подозрительные
+                    # пути — иначе на десктопе десятки ложных срабатываний.
+                    libs = val.replace(":", " ").split()
+                    bad = [l for l in libs if l and (
+                        l.startswith(("/tmp/", "/dev/shm/", "/var/tmp/", "/run/shm/"))
+                        or "(deleted)" in l or "memfd:" in l
+                        or not l.startswith(("/usr/lib", "/lib", "/usr/local/lib", "/snap/")))]
+                    if not bad:
+                        break
+                    try:
+                        pname = Path(f"/proc/{entry}/comm").read_text(errors="ignore").strip()
+                    except Exception:
+                        pname = "?"
+                    findings.append(Finding(
+                        method   = "LD_PRELOAD Injection",
+                        severity = "СРЕДНЯЯ",
+                        title    = f"Подозрительный LD_PRELOAD у {pname} (PID {entry})",
+                        where    = f"PID {entry} ({pname})",
+                        how      = f"Подгружена библиотека из нестандартного пути: {', '.join(bad)[:100]}",
+                        why      = ("Сторонняя .so из нетипичного каталога перехватывает libc-функции. "
+                                    "Так работают userland-rootkit (Azazel, Jynx, beurk)."),
+                        fix      = f"sudo cat /proc/{entry}/environ | tr '\\0' '\\n' | grep LD_PRELOAD",
+                        mitre    = "T1574.006 (Dynamic Linker Hijacking)",
+                        evidence = val[:150]
+                    ))
+                    break
+        except Exception:
+            pass
+        return findings
+
     # ── МЕТОД 4: Целостность критичных бинарников ────────────────
     def detect_binary_tampering(self) -> List[Finding]:
         """Проверяем хеши критичных бинарников против baseline.
@@ -288,6 +410,45 @@ class RootkitDetector:
         findings = []
         baseline = self._load_baseline()
         baseline_bins = baseline.get("binaries", {})
+
+        # Если baseline нет — проверяем целостность через менеджер пакетов,
+        # но только для пакетов критичных бинарей (полный dpkg --verify
+        # системы занимает десятки секунд и подвешивает UI).
+        if not baseline_bins:
+            pkgs = set()
+            existing_bins = [b for b in self.CRITICAL_BINS if os.path.exists(b)]
+            if existing_bins:
+                owners = self._run(["dpkg", "-S"] + existing_bins)
+                for ln in owners.splitlines():
+                    if ":" in ln:
+                        pkgs.add(ln.split(":", 1)[0].split(",")[0].strip())
+            verify = self._run(["dpkg", "--verify"] + sorted(pkgs)) if pkgs else ""
+            _bin_dirs = ("/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/",
+                         "/lib/", "/usr/lib/")
+            if verify.strip():
+                for line in verify.strip().split("\n"):
+                    parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    flags = parts[0]
+                    fpath = parts[-1]
+                    is_config = "c" in parts[1:-1]          # маркер 'c' = конфиг-файл
+                    md5_changed = len(flags) >= 3 and flags[2] == "5"
+                    if md5_changed and not is_config and fpath.startswith(_bin_dirs):
+                        findings.append(Finding(
+                            method   = "Binary Integrity (dpkg --verify)",
+                            severity = "СРЕДНЯЯ",
+                            title    = f"Файл изменён относительно пакета: {fpath}",
+                            where    = fpath,
+                            how      = ("dpkg --verify сообщает о расхождении контрольной суммы "
+                                        "с эталоном из установленного пакета (флаг '5')."),
+                            why      = ("Файл из системного пакета был изменён после установки. "
+                                        "Может быть легитимным обновлением конфигурации, "
+                                        "но для бинарей — признак подмены."),
+                            fix      = f"sudo dpkg --verify | grep {os.path.basename(fpath)}\nsudo apt install --reinstall $(dpkg -S {fpath} | cut -d: -f1)",
+                            mitre    = "T1554 (Compromise Host Software)",
+                            evidence = line.strip()[:150]
+                        ))
 
         for binpath in self.CRITICAL_BINS:
             if not os.path.exists(binpath):
@@ -386,6 +547,7 @@ class RootkitDetector:
             ("Скрытые процессы",      self.detect_hidden_processes),
             ("Скрытые модули ядра",   self.detect_hidden_modules),
             ("Privilege Escalation",  self.detect_privilege_escalation),
+            ("LD_PRELOAD инъекция",   self.detect_ld_preload),
             ("Целостность бинарников", self.detect_binary_tampering),
             ("Backdoor соединения",   self.detect_suspicious_connections),
         ]

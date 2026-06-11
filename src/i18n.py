@@ -419,7 +419,7 @@ TRANSLATIONS["ru"].update({
     "baseline_none": "⚬ baseline: нет",
     "scan_done_lc": "скан завершён",
     "system_clean": "СИСТЕМА ЧИСТА",
-    "no_rootkit_5": "rootkit не обнаружен ни одним из 5 детекторов",
+    "no_rootkit_5": "rootkit не обнаружен ни одним из 6 детекторов",
     "claude_plan": "// Claude советует план реагирования",
     "get_ai_plan": "🧠  Получить план от AI",
     "copy_commands": "📋 Копировать команды",
@@ -516,7 +516,7 @@ TRANSLATIONS["en"].update({
     "baseline_none": "⚬ baseline: none",
     "scan_done_lc": "scan finished",
     "system_clean": "SYSTEM CLEAN",
-    "no_rootkit_5": "no rootkit detected by any of the 5 detectors",
+    "no_rootkit_5": "no rootkit detected by any of the 6 detectors",
     "claude_plan": "// Claude suggests a response plan",
     "get_ai_plan": "🧠  Get AI plan",
     "copy_commands": "📋 Copy commands",
@@ -613,7 +613,7 @@ TRANSLATIONS["kz"].update({
     "baseline_none": "⚬ baseline: жоқ",
     "scan_done_lc": "скан аяқталды",
     "system_clean": "ЖҮЙЕ ТАЗА",
-    "no_rootkit_5": "rootkit 5 детектордың ешқайсысымен анықталмады",
+    "no_rootkit_5": "rootkit 6 детектордың ешқайсысымен анықталмады",
     "claude_plan": "// Claude әрекет ету жоспарын ұсынады",
     "get_ai_plan": "🧠  AI жоспарын алу",
     "copy_commands": "📋 Командаларды көшіру",
@@ -633,3 +633,7 @@ TRANSLATIONS["en"].update({"pause_btn": "⏸  Pause", "resume_btn": "▶  Resume
                            "paused": "● Paused", "details_col": "Details"})
 TRANSLATIONS["kz"].update({"pause_btn": "⏸  Кідірту", "resume_btn": "▶  Жалғастыру",
                            "paused": "● Кідірту", "details_col": "Мәліметтер"})
+
+TRANSLATIONS["ru"].update({"clear_btn": "\u2715 Очистить"})
+TRANSLATIONS["en"].update({"clear_btn": "\u2715 Clear"})
+TRANSLATIONS["kz"].update({"clear_btn": "\u2715 Тазалау"})

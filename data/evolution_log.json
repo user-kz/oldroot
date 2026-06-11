@@ -1,18 +1,6 @@
 {
-  "version": 69,
+  "version": 70,
   "history": [
-    {
-      "version": 50,
-      "timestamp": "2026-06-01T21:06:44.756016",
-      "new_samples": 60,
-      "new_trees": 20,
-      "total_trees": 1030,
-      "labels": {
-        "anomaly": 60,
-        "normal": 0
-      },
-      "status": "success"
-    },
     {
       "version": 51,
       "timestamp": "2026-06-01T21:07:01.273409",
@@ -235,6 +223,18 @@
       "new_samples": 60,
       "new_trees": 20,
       "total_trees": 70,
+      "labels": {
+        "anomaly": 60,
+        "normal": 0
+      },
+      "status": "success"
+    },
+    {
+      "version": 70,
+      "timestamp": "2026-06-11T18:24:59.015163",
+      "new_samples": 60,
+      "new_trees": 20,
+      "total_trees": 90,
       "labels": {
         "anomaly": 60,
         "normal": 0

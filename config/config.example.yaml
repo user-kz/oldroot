@@ -24,3 +24,6 @@ logging:
   backup_count: 3
 anthropic:
   api_key: ""
+
+performance:
+  lite_mode: false   # лёгкий режим: реже мониторинг, без авто-скана при старте

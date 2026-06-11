@@ -219,8 +219,12 @@ class RootkitGuard(ctk.CTk):
             text=t("api_no_resp"), text_color="red"))
 
     def _auto_startup_scan(self):
-        """При запуске автоматически делает Rootkit Scan в фоне."""
+        """При запуске делает Rootkit Scan в фоне (если включено в настройках)."""
         import time
+        if not cfg.get("scan", {}).get("autostart_scan", True):
+            return
+        if cfg.get("performance", {}).get("lite_mode", False):
+            return  # lite-режим: не нагружаем систему при старте
         time.sleep(3)
         log.info("Авто-сканирование при запуске...")
         try:
@@ -309,7 +313,6 @@ class RootkitGuard(ctk.CTk):
             ("  🔍  Сканирование",  "scan"),
             ("  👁   Мониторинг",   "monitor"),
             ("  📊  Аналитика",     "analytics"),
-            ("  📄  Отчёт",         "report"),
             ("  ⚙️  Настройки",    "settings"),
             ("  ℹ️  О системе",     "about"),
         ]
@@ -382,7 +385,6 @@ class RootkitGuard(ctk.CTk):
             "scan":      self._page_scan,
             "monitor":   self._page_monitor,
             "analytics": self._page_analytics,
-            "report":    self._page_report,
             "settings":  self._page_settings,
             "about":     self._page_about,
         }
@@ -397,7 +399,7 @@ class RootkitGuard(ctk.CTk):
             for key, btn in self.nav_buttons.items():
                 icons = {"home":"🏠","rkdefense":"🛡","scan":"🔍",
                          "monitor":"👁","analytics":"📊",
-                         "report":"📄","settings":"⚙️","about":"ℹ️"}
+                         "settings":"⚙️","about":"ℹ️"}
                 btn.configure(text=f"  {icons.get(key,'●')}")
             self._toggle_btn.configure(text="▶")
             self.model_lbl.configure(text="●")
@@ -418,11 +420,10 @@ class RootkitGuard(ctk.CTk):
                 (t("scan"),          "scan"),
                 (t("monitor"),       "monitor"),
                 (t("analytics"),     "analytics"),
-                (t("report"),        "report"),
                 (t("settings"),      "settings"),
                 (t("about"),         "about"),
             ]
-            icons = ["🏠","🛡","🔍","👁","📊","📄","⚙️","ℹ️"]
+            icons = ["🏠","🛡","🔍","👁","📊","⚙️","ℹ️"]
             for (label, key), icon in zip(pages_nav, icons):
                 self.nav_buttons[key].configure(text=f"  {icon}  {label}")
             self._toggle_btn.configure(text="◀")
@@ -450,6 +451,8 @@ class RootkitGuard(ctk.CTk):
             btn.configure(fg_color="#1f538d" if k == key else "transparent")
         if key == "monitor":
             self.after(50, self._refresh_monitor_table)
+        if key == "analytics":
+            self.after(50, self._refresh_analytics_snapshot)
 
 
     def _show_lang_menu(self):
@@ -490,11 +493,10 @@ class RootkitGuard(ctk.CTk):
             (t("scan"),         "scan"),
             (t("monitor"),      "monitor"),
             (t("analytics"),    "analytics"),
-            (t("report"),       "report"),
             (t("settings"),     "settings"),
             (t("about"),        "about"),
         ]
-        icons = ["🏠","🛡","🔍","👁","📊","📄","⚙️","ℹ️"]
+        icons = ["🏠","🛡","🔍","👁","📊","⚙️","ℹ️"]
         for (label, key), icon in zip(pages_nav, icons):
             if key in self.nav_buttons:
                 self.nav_buttons[key].configure(text=f"  {icon}  {label}")
@@ -1322,15 +1324,32 @@ class RootkitGuard(ctk.CTk):
         self.scan_history_box.insert("end", t("no_scans") + "\n")
         self.scan_history_box.configure(state="disabled")
 
-        # Кнопка PDF после скана
-        self.scan_pdf_btn = ctk.CTkButton(
-            frame, text=t("create_pdf"), height=40,
-            fg_color="#7a1e1e", hover_color="#c0392b",
-            corner_radius=8, state="disabled",
+        # ── Экспорт отчёта: Word / PDF / Excel ──
+        exp = ctk.CTkFrame(frame, fg_color="transparent")
+        exp.pack(fill="x", padx=20, pady=(4, 2))
+        exp.grid_columnconfigure((0, 1, 2), weight=1)
+        self.scan_word_btn = ctk.CTkButton(
+            exp, text=t("export_word"), height=40, corner_radius=8, state="disabled",
+            fg_color="#1e4620", hover_color="#2d6a30",
             font=ctk.CTkFont(size=13, weight="bold"),
-            command=lambda: threading.Thread(
-                target=self._gen_pdf_report, daemon=True).start())
-        self.scan_pdf_btn.pack(pady=(4, 8), padx=20, fill="x")
+            command=lambda: threading.Thread(target=self._gen_word_report, daemon=True).start())
+        self.scan_word_btn.grid(row=0, column=0, padx=(0, 4), sticky="ew")
+        self.scan_pdf_btn = ctk.CTkButton(
+            exp, text=t("export_pdf"), height=40, corner_radius=8, state="disabled",
+            fg_color="#7a1e1e", hover_color="#c0392b",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=lambda: threading.Thread(target=self._gen_pdf_report, daemon=True).start())
+        self.scan_pdf_btn.grid(row=0, column=1, padx=4, sticky="ew")
+        self.scan_excel_btn = ctk.CTkButton(
+            exp, text=t("export_excel"), height=40, corner_radius=8, state="disabled",
+            fg_color="#1d4d3e", hover_color="#256b54",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=lambda: threading.Thread(target=self._gen_excel_report, daemon=True).start())
+        self.scan_excel_btn.grid(row=0, column=2, padx=(4, 0), sticky="ew")
+
+        self.scan_export_status = ctk.CTkLabel(
+            frame, text="", font=ctk.CTkFont(size=11), text_color="#2dc97e")
+        self.scan_export_status.pack(anchor="w", padx=20, pady=(0, 6))
 
         self._scan_history = []
         return frame
@@ -1456,7 +1475,8 @@ class RootkitGuard(ctk.CTk):
         self.normal_lbl.configure(text="—")
         self.anom_lbl.configure(text="—")
         self.threat_lbl.configure(text="—", text_color="white")
-        self.scan_pdf_btn.configure(state="disabled")
+        for _b in ("scan_word_btn","scan_pdf_btn","scan_excel_btn"):
+            if hasattr(self, _b): getattr(self, _b).configure(state="disabled")
         if hasattr(self, '_threat_panel'):
             try:
                 self._threat_panel.destroy()
@@ -1751,7 +1771,9 @@ class RootkitGuard(ctk.CTk):
         self.after(0, lambda c=bar_color: self.scan_progress.configure(
             progress_color=c))
         
-        self.after(0, lambda: self.scan_pdf_btn.configure(state="normal"))
+        self.after(0, lambda: [getattr(self, _b).configure(state="normal")
+                               for _b in ("scan_word_btn","scan_pdf_btn","scan_excel_btn")
+                               if hasattr(self, _b)])
 
         # Добавляем в историю
         ts = self._last_scan.get("timestamp", "")
@@ -2605,11 +2627,14 @@ Security Score: {insight['metrics'][0][1]}
         self.mon_scroll.pack(fill="both", expand=True, padx=4, pady=(0, 4))
 
         # Real-time стартует автоматически
+        self._lite = cfg.get("performance", {}).get("lite_mode", False)
+        self._mon_row_cap = 20 if self._lite else 40
         self._mon_rows = []
         self._monitor = ProcessMonitor()
         self._monitor_data = []
         self._monitor.add_callback(self._on_monitor_update)
-        self._monitor.start_realtime()
+        self._monitor.start_realtime(interval=6 if self._lite else
+                                     cfg.get("monitor", {}).get("interval_sec", 3))
         return frame
 
     def _on_monitor_update(self, data):
@@ -2625,7 +2650,7 @@ Security Score: {insight['metrics'][0][1]}
         filt = self.mon_filter.get()
         data = (self._monitor_data if filt == t("all_lbl")
                 else [r for r in self._monitor_data if r["threat"] == filt])
-        data = data[:40]
+        data = data[:getattr(self, "_mon_row_cap", 40)]
         threats = sum(1 for r in self._monitor_data if r["threat"] != "НИЗКАЯ")
         self.mon_count.configure(text=f"{t('processes')}: {len(self._monitor_data)}")
         self.mon_threats.configure(
@@ -2701,6 +2726,50 @@ Security Score: {insight['metrics'][0][1]}
         ctk.CTkLabel(hdr, text=f"📊  {t('analytics_title')}",
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color="#00d4ff").pack(side="left", padx=16, pady=14)
+
+        # ── Живой снимок системы (psutil) ────────────────────────
+        snap = ctk.CTkFrame(frame, fg_color="transparent")
+        snap.pack(fill="x", padx=16, pady=(0, 6))
+        self._an_snap_labels = {}
+        snap_defs = [(t("an_cpu"), "cpu", "#0ea5e9"), (t("an_ram"), "ram", "#a855f7"),
+                     (t("an_procs"), "procs", "#2dc97e"), (t("an_threats"), "thr", "#f59e0b")]
+        for i, (title, key, color) in enumerate(snap_defs):
+            snap.grid_columnconfigure(i, weight=1)
+            c = ctk.CTkFrame(snap, fg_color="#0d1117", corner_radius=10,
+                             border_width=1, border_color="#1e293b", height=64)
+            c.grid(row=0, column=i, padx=4, sticky="ew"); c.grid_propagate(False)
+            ctk.CTkFrame(c, fg_color=color, width=4, corner_radius=0).pack(side="left", fill="y")
+            inn = ctk.CTkFrame(c, fg_color="transparent"); inn.pack(side="left", padx=10, pady=6)
+            ctk.CTkLabel(inn, text=title, font=ctk.CTkFont(size=10),
+                         text_color=color, anchor="w").pack(anchor="w")
+            lbl = ctk.CTkLabel(inn, text="…", font=ctk.CTkFont(size=17, weight="bold"),
+                               text_color="white", anchor="w")
+            lbl.pack(anchor="w")
+            self._an_snap_labels[key] = lbl
+        self._refresh_analytics_snapshot()
+
+        # ── Последнее сканирование (пропорция) ───────────────────
+        ls = getattr(self, "_last_scan", None)
+        if ls and ls.get("total"):
+            lscard = ctk.CTkFrame(frame, fg_color="#0d1117", corner_radius=10,
+                                  border_width=1, border_color="#1e293b")
+            lscard.pack(fill="x", padx=16, pady=(0, 6))
+            ctk.CTkLabel(lscard, text=t("an_last_scan"),
+                         font=ctk.CTkFont(size=10, weight="bold"),
+                         text_color="#475569").pack(anchor="w", padx=12, pady=(8, 2))
+            total = max(ls["total"], 1)
+            anom_frac = ls["anomaly"] / total
+            barbg = ctk.CTkFrame(lscard, fg_color="#1e293b", corner_radius=5, height=22)
+            barbg.pack(fill="x", padx=12, pady=(0, 4)); barbg.pack_propagate(False)
+            if anom_frac > 0:
+                ctk.CTkFrame(barbg, fg_color="#e74c3c", corner_radius=5,
+                             ).place(relx=0, rely=0, relwidth=max(anom_frac, 0.01), relheight=1)
+            ctk.CTkLabel(lscard,
+                         text=f"{t('normal')}: {ls['normal']:,}   ·   "
+                              f"{t('anomalies')}: {ls['anomaly']:,} ({ls['pct']:.1f}%)   ·   "
+                              f"{t('threat')}: {ls['threat']}",
+                         font=ctk.CTkFont(size=11), text_color="#94a3b8"
+                         ).pack(anchor="w", padx=12, pady=(0, 8))
 
         # Карточки сверху
         top_cards = ctk.CTkFrame(frame, fg_color="transparent")
@@ -2814,6 +2883,25 @@ Security Score: {insight['metrics'][0][1]}
         ctk.CTkLabel(guide, text="",).pack(pady=4)
         return frame
     # ── Отчёт ────────────────────────────────────────────────────
+
+    def _refresh_analytics_snapshot(self):
+        if not hasattr(self, "_an_snap_labels"):
+            return
+        try:
+            lbls = self._an_snap_labels
+            if not lbls["cpu"].winfo_exists():
+                return
+            import psutil
+            lbls["cpu"].configure(text=f"{psutil.cpu_percent():.0f}%")
+            lbls["ram"].configure(text=f"{psutil.virtual_memory().percent:.0f}%")
+            lbls["procs"].configure(text=str(len(psutil.pids())))
+            thr = sum(1 for r in getattr(self, "_monitor_data", [])
+                      if r.get("threat") != "НИЗКАЯ")
+            lbls["thr"].configure(text=str(thr))
+        except Exception:
+            pass
+        if getattr(self, "_current_page", "") == "analytics":
+            self.after(2000, self._refresh_analytics_snapshot)
 
     def _page_report(self):
         frame = ctk.CTkFrame(self.main, fg_color="transparent")
@@ -3060,12 +3148,14 @@ Security Score: {insight['metrics'][0][1]}
         out_path.write_text(rpt, encoding="utf-8")
         self.report_status.configure(text=f"✓ {t('saved_to')}: reports/{out_name}")
 
+    def _set_export_status(self, text, color="#2dc97e"):
+        if hasattr(self, "scan_export_status") and self.scan_export_status.winfo_exists():
+            self.after(0, lambda: self.scan_export_status.configure(text=text, text_color=color))
+
     def _gen_pdf_report(self):
-        self._update_report_info()
         try:
             from pdf_report import generate_pdf_report
-            if self._report_ui_ready():
-                self.report_status.configure(text=t("generating_pdf"), text_color="yellow")
+            self._set_export_status(t("generating_pdf"), "#f39c12")
             s = self._last_scan
             out_name = self._unique_name("pdf")
             out_path = str(Path("reports") / out_name)
@@ -3082,26 +3172,83 @@ Security Score: {insight['metrics'][0][1]}
                 "timestamp":  s["timestamp"] or "—",
             }
             generate_pdf_report(scan_data, out_path)
-            if self._report_ui_ready():
-                self.report_status.configure(
-                    text=f"✓ PDF: reports/{out_name}", text_color="#2dc97e")
-            if not self._report_ui_ready():
-                return
-            self.report_box.configure(state="normal")
-            self.report_box.delete("1.0", "end")
-            self.report_box.insert("end",
-                f"PDF-отчёт сгенерирован:\n"
-                f"  reports/{out_name}\n\n"
-                f"Файл скана:  {s['filename']}\n"
-                f"Время:       {s['timestamp']}\n"
-                f"Аномалий:    {s['anomaly']:,} ({s['pct']:.2f}%)\n"
-                f"Угроза:      {s['threat']}\n\n"
-                f"Открой файл из папки reports/")
-            self.report_box.configure(state="disabled")
+            self._set_export_status(f"✓ PDF: reports/{out_name}")
         except Exception as e:
-            if self._report_ui_ready():
-                self.report_status.configure(text=f"{t('pdf_error')}: {e}", text_color="red")
+            self._set_export_status(f"{t('pdf_error')}: {e}", "#e74c3c")
             log.error(f"PDF error: {e}")
+
+    def _gen_word_report(self):
+        try:
+            from docx import Document
+            from docx.shared import Pt, RGBColor
+            self._set_export_status(t("generating_word"), "#f39c12")
+            s = self._last_scan
+            Path("reports").mkdir(exist_ok=True)
+            out_name = self._unique_name("docx")
+            doc = Document()
+            doc.add_heading("RootkitGuard — Отчёт анализа", 0)
+            doc.add_paragraph(f"Дата: {s['timestamp'] or '—'}    "
+                              f"Версия: RootkitGuard v{cfg.get('app',{}).get('version','2.1')}")
+            doc.add_paragraph(f"Файл: {s['filename'] or '—'}")
+            doc.add_heading("Результаты сканирования", level=1)
+            tbl = doc.add_table(rows=0, cols=2)
+            tbl.style = "Light Grid Accent 1"
+            for k, v in [("Всего записей", f"{s['total']:,}"),
+                         ("Нормальных", f"{s['normal']:,}"),
+                         ("Аномалий", f"{s['anomaly']:,} ({s['pct']:.2f}%)"),
+                         ("Макс. вероятность", f"{s.get('max_proba',0):.4f}"),
+                         ("Уровень угрозы", s['threat']),
+                         ("Топ порты", str(s.get('top_ports', []) or '—'))]:
+                row = tbl.add_row().cells
+                row[0].text, row[1].text = k, v
+            doc.add_heading("Заключение", level=1)
+            verdict = ("НЕМЕДЛЕННОЕ РАССЛЕДОВАНИЕ ТРЕБУЕТСЯ" if s['threat'] == 'ВЫСОКАЯ'
+                       else "Рекомендуется усиленный мониторинг" if s['threat'] == 'СРЕДНЯЯ'
+                       else "Система работает в штатном режиме")
+            doc.add_paragraph(verdict)
+            doc.save(str(Path("reports") / out_name))
+            self._set_export_status(f"✓ Word: reports/{out_name}")
+        except Exception as e:
+            self._set_export_status(f"{t('word_error')}: {e}", "#e74c3c")
+            log.error(f"Word error: {e}")
+
+    def _gen_excel_report(self):
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill
+            self._set_export_status(t("generating_excel"), "#f39c12")
+            s = self._last_scan
+            Path("reports").mkdir(exist_ok=True)
+            out_name = self._unique_name("xlsx")
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Отчёт"
+            hdr = Font(bold=True, color="FFFFFF")
+            fill = PatternFill("solid", fgColor="1F538D")
+            ws["A1"] = "RootkitGuard — Отчёт анализа"
+            ws["A1"].font = Font(bold=True, size=14)
+            rows = [("Параметр", "Значение"),
+                    ("Дата", s['timestamp'] or '—'),
+                    ("Файл", s['filename'] or '—'),
+                    ("Всего записей", s['total']),
+                    ("Нормальных", s['normal']),
+                    ("Аномалий", s['anomaly']),
+                    ("Доля аномалий, %", round(s['pct'], 2)),
+                    ("Макс. вероятность", round(s.get('max_proba', 0), 4)),
+                    ("Уровень угрозы", s['threat']),
+                    ("Топ порты", str(s.get('top_ports', []) or '—'))]
+            for i, (k, v) in enumerate(rows, start=3):
+                ws[f"A{i}"], ws[f"B{i}"] = k, v
+                if i == 3:
+                    for c in ("A3", "B3"):
+                        ws[c].font = hdr; ws[c].fill = fill
+            ws.column_dimensions["A"].width = 22
+            ws.column_dimensions["B"].width = 30
+            wb.save(str(Path("reports") / out_name))
+            self._set_export_status(f"✓ Excel: reports/{out_name}")
+        except Exception as e:
+            self._set_export_status(f"{t('excel_error')}: {e}", "#e74c3c")
+            log.error(f"Excel error: {e}")
 
     # ── Настройки ────────────────────────────────────────────────
 
@@ -3125,7 +3272,7 @@ Security Score: {insight['metrics'][0][1]}
                          font=ctk.CTkFont(size=12)).pack(side="left", padx=12, pady=10)
             widget_fn(r)
 
-        section("Сканирование")
+        section(t("scan"))
         self._threshold_val = ctk.DoubleVar(
             value=cfg.get("scan", {}).get("threshold", 0.5))
         def thresh_row(p):
@@ -3133,30 +3280,30 @@ Security Score: {insight['metrics'][0][1]}
                                variable=self._threshold_val, width=180)
             sl.pack(side="left", padx=5)
             ctk.CTkLabel(p, textvariable=self._threshold_val).pack(side="left")
-        row("Порог аномалии", thresh_row)
+        row(t("set_threshold"), thresh_row)
 
         self._rows_val = ctk.StringVar(
             value=str(cfg.get("scan", {}).get("default_rows", 10000)))
-        row("Строк по умолчанию",
+        row(t("set_rows"),
             lambda p: ctk.CTkEntry(p, textvariable=self._rows_val, width=120
                                    ).pack(side="left", padx=5, pady=10))
 
-        section("Мониторинг")
+        section(t("monitor"))
         self._interval_val = ctk.StringVar(
             value=str(cfg.get("monitor", {}).get("interval_sec", 5)))
-        row("Интервал обновления (сек)",
+        row(t("set_interval"),
             lambda p: ctk.CTkEntry(p, textvariable=self._interval_val, width=80
                                    ).pack(side="left", padx=5, pady=10))
 
-        section("Уведомления")
+        section(t("set_notif_section"))
         self._notif_var = ctk.BooleanVar(
             value=cfg.get("notifications", {}).get("enabled", True))
-        row("Включить уведомления",
+        row(t("set_notif_enable"),
             lambda p: ctk.CTkSwitch(p, text="", variable=self._notif_var
                                     ).pack(side="left", padx=5, pady=10))
         self._notif_lvl = ctk.StringVar(
             value=cfg.get("notifications", {}).get("min_threat_lvl", "СРЕДНЯЯ"))
-        row("Мин. уровень уведомления",
+        row(t("set_notif_level"),
             lambda p: ctk.CTkComboBox(
                 p, values=["НИЗКАЯ", "СРЕДНЯЯ", "ВЫСОКАЯ"],
                 variable=self._notif_lvl, width=150
@@ -3165,9 +3312,41 @@ Security Score: {insight['metrics'][0][1]}
         section("API")
         self._api_port = ctk.StringVar(
             value=str(cfg.get("api", {}).get("port", 8000)))
-        row("Порт API",
+        row(t("set_api_port"),
             lambda p: ctk.CTkEntry(p, textvariable=self._api_port, width=100
                                    ).pack(side="left", padx=5, pady=10))
+
+        section(t("set_interface"))
+        def lang_row(p):
+            cur = {"ru": "РУС", "en": "ENG", "kz": "ҚАЗ"}.get(get_lang(), "РУС")
+            cb = ctk.CTkComboBox(p, values=["РУС", "ENG", "ҚАЗ"], width=120,
+                                 command=lambda v: self._switch_lang(
+                                     {"РУС": "ru", "ENG": "en", "ҚАЗ": "kz"}[v]))
+            cb.set(cur)
+            cb.pack(side="left", padx=5, pady=10)
+        row(t("set_language"), lang_row)
+
+        def theme_row(p):
+            cur = ctk.get_appearance_mode()  # 'Dark' / 'Light'
+            cb = ctk.CTkComboBox(p, values=[t("theme_dark"), t("theme_light")], width=140,
+                                 command=lambda v: ctk.set_appearance_mode(
+                                     "dark" if v == t("theme_dark") else "light"))
+            cb.set(t("theme_dark") if cur == "Dark" else t("theme_light"))
+            cb.pack(side="left", padx=5, pady=10)
+        row(t("set_theme"), theme_row)
+
+        section(t("set_startup_section"))
+        self._autoscan_var = ctk.BooleanVar(
+            value=cfg.get("scan", {}).get("autostart_scan", True))
+        row(t("set_autoscan"),
+            lambda p: ctk.CTkSwitch(p, text="", variable=self._autoscan_var
+                                    ).pack(side="left", padx=5, pady=10))
+
+        self._lite_var = ctk.BooleanVar(
+            value=cfg.get("performance", {}).get("lite_mode", False))
+        row(t("set_lite"),
+            lambda p: ctk.CTkSwitch(p, text="", variable=self._lite_var
+                                    ).pack(side="left", padx=5, pady=10))
 
         btn_row = ctk.CTkFrame(frame, fg_color="transparent")
         btn_row.pack(pady=10)
@@ -3188,6 +3367,8 @@ Security Score: {insight['metrics'][0][1]}
             import yaml
             cfg["scan"]["threshold"]       = round(self._threshold_val.get(), 1)
             cfg["scan"]["default_rows"]    = int(self._rows_val.get())
+            cfg["scan"]["autostart_scan"]  = bool(self._autoscan_var.get())
+            cfg.setdefault("performance", {})["lite_mode"] = bool(self._lite_var.get())
             cfg["monitor"]["interval_sec"] = int(self._interval_val.get())
             cfg["notifications"]["enabled"]        = self._notif_var.get()
             cfg["notifications"]["min_threat_lvl"] = self._notif_lvl.get()
